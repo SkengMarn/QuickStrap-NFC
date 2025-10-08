@@ -1,0 +1,578 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		D100A7F92E83CD7900B82C8B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D100A7DA2E83CD7700B82C8B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D100A7E12E83CD7700B82C8B;
+			remoteInfo = NFCExperinceDemo;
+		};
+		D100A8032E83CD7900B82C8B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D100A7DA2E83CD7700B82C8B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D100A7E12E83CD7700B82C8B;
+			remoteInfo = NFCExperinceDemo;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		D100A7E22E83CD7700B82C8B /* NFCExperinceDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NFCExperinceDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D100A7F82E83CD7900B82C8B /* NFCExperinceDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NFCExperinceDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D100A8022E83CD7900B82C8B /* NFCExperinceDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NFCExperinceDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D100A80A2E83CD7900B82C8B /* Exceptions for "NFCExperinceDemo" folder in "NFCExperinceDemo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D100A7E12E83CD7700B82C8B /* NFCExperinceDemo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D100A7E42E83CD7700B82C8B /* NFCExperinceDemo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D100A80A2E83CD7900B82C8B /* Exceptions for "NFCExperinceDemo" folder in "NFCExperinceDemo" target */,
+			);
+			path = NFCExperinceDemo;
+			sourceTree = "<group>";
+		};
+		D100A7FB2E83CD7900B82C8B /* NFCExperinceDemoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NFCExperinceDemoTests;
+			sourceTree = "<group>";
+		};
+		D100A8052E83CD7900B82C8B /* NFCExperinceDemoUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NFCExperinceDemoUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D100A7DF2E83CD7700B82C8B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A7F52E83CD7900B82C8B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A7FF2E83CD7900B82C8B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D100A7D92E83CD7700B82C8B = {
+			isa = PBXGroup;
+			children = (
+				D100A7E42E83CD7700B82C8B /* NFCExperinceDemo */,
+				D100A7FB2E83CD7900B82C8B /* NFCExperinceDemoTests */,
+				D100A8052E83CD7900B82C8B /* NFCExperinceDemoUITests */,
+				D100A7E32E83CD7700B82C8B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D100A7E32E83CD7700B82C8B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D100A7E22E83CD7700B82C8B /* NFCExperinceDemo.app */,
+				D100A7F82E83CD7900B82C8B /* NFCExperinceDemoTests.xctest */,
+				D100A8022E83CD7900B82C8B /* NFCExperinceDemoUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D100A7E12E83CD7700B82C8B /* NFCExperinceDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D100A80B2E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemo" */;
+			buildPhases = (
+				D100A7DE2E83CD7700B82C8B /* Sources */,
+				D100A7DF2E83CD7700B82C8B /* Frameworks */,
+				D100A7E02E83CD7700B82C8B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D100A7E42E83CD7700B82C8B /* NFCExperinceDemo */,
+			);
+			name = NFCExperinceDemo;
+			packageProductDependencies = (
+			);
+			productName = NFCExperinceDemo;
+			productReference = D100A7E22E83CD7700B82C8B /* NFCExperinceDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D100A7F72E83CD7900B82C8B /* NFCExperinceDemoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D100A8102E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemoTests" */;
+			buildPhases = (
+				D100A7F42E83CD7900B82C8B /* Sources */,
+				D100A7F52E83CD7900B82C8B /* Frameworks */,
+				D100A7F62E83CD7900B82C8B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D100A7FA2E83CD7900B82C8B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D100A7FB2E83CD7900B82C8B /* NFCExperinceDemoTests */,
+			);
+			name = NFCExperinceDemoTests;
+			packageProductDependencies = (
+			);
+			productName = NFCExperinceDemoTests;
+			productReference = D100A7F82E83CD7900B82C8B /* NFCExperinceDemoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D100A8012E83CD7900B82C8B /* NFCExperinceDemoUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D100A8132E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemoUITests" */;
+			buildPhases = (
+				D100A7FE2E83CD7900B82C8B /* Sources */,
+				D100A7FF2E83CD7900B82C8B /* Frameworks */,
+				D100A8002E83CD7900B82C8B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D100A8042E83CD7900B82C8B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D100A8052E83CD7900B82C8B /* NFCExperinceDemoUITests */,
+			);
+			name = NFCExperinceDemoUITests;
+			packageProductDependencies = (
+			);
+			productName = NFCExperinceDemoUITests;
+			productReference = D100A8022E83CD7900B82C8B /* NFCExperinceDemoUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D100A7DA2E83CD7700B82C8B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					D100A7E12E83CD7700B82C8B = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					D100A7F72E83CD7900B82C8B = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = D100A7E12E83CD7700B82C8B;
+					};
+					D100A8012E83CD7900B82C8B = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = D100A7E12E83CD7700B82C8B;
+					};
+				};
+			};
+			buildConfigurationList = D100A7DD2E83CD7700B82C8B /* Build configuration list for PBXProject "NFCExperinceDemo" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D100A7D92E83CD7700B82C8B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D100A7E32E83CD7700B82C8B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D100A7E12E83CD7700B82C8B /* NFCExperinceDemo */,
+				D100A7F72E83CD7900B82C8B /* NFCExperinceDemoTests */,
+				D100A8012E83CD7900B82C8B /* NFCExperinceDemoUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D100A7E02E83CD7700B82C8B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A7F62E83CD7900B82C8B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A8002E83CD7900B82C8B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D100A7DE2E83CD7700B82C8B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A7F42E83CD7900B82C8B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D100A7FE2E83CD7900B82C8B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D100A7FA2E83CD7900B82C8B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D100A7E12E83CD7700B82C8B /* NFCExperinceDemo */;
+			targetProxy = D100A7F92E83CD7900B82C8B /* PBXContainerItemProxy */;
+		};
+		D100A8042E83CD7900B82C8B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D100A7E12E83CD7700B82C8B /* NFCExperinceDemo */;
+			targetProxy = D100A8032E83CD7900B82C8B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		D100A80C2E83CD7900B82C8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NFCExperinceDemo/NFCExperinceDemo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NFCExperinceDemo/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D100A80D2E83CD7900B82C8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NFCExperinceDemo/NFCExperinceDemo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NFCExperinceDemo/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D100A80E2E83CD7900B82C8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D100A80F2E83CD7900B82C8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D100A8112E83CD7900B82C8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NFCExperinceDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NFCExperinceDemo";
+			};
+			name = Debug;
+		};
+		D100A8122E83CD7900B82C8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NFCExperinceDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NFCExperinceDemo";
+			};
+			name = Release;
+		};
+		D100A8142E83CD7900B82C8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NFCExperinceDemo;
+			};
+			name = Debug;
+		};
+		D100A8152E83CD7900B82C8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A7K9T2WRC;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCExperinceDemoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NFCExperinceDemo;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D100A7DD2E83CD7700B82C8B /* Build configuration list for PBXProject "NFCExperinceDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D100A80E2E83CD7900B82C8B /* Debug */,
+				D100A80F2E83CD7900B82C8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D100A80B2E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D100A80C2E83CD7900B82C8B /* Debug */,
+				D100A80D2E83CD7900B82C8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D100A8102E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D100A8112E83CD7900B82C8B /* Debug */,
+				D100A8122E83CD7900B82C8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D100A8132E83CD7900B82C8B /* Build configuration list for PBXNativeTarget "NFCExperinceDemoUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D100A8142E83CD7900B82C8B /* Debug */,
+				D100A8152E83CD7900B82C8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D100A7DA2E83CD7700B82C8B /* Project object */;
+}
