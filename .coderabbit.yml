@@ -1,0 +1,119 @@
+# CodeRabbit Configuration for QuickStrap NFC
+# https://docs.coderabbit.ai/configuration
+
+# Review settings
+reviews:
+  # Enable automatic reviews on pull requests
+  auto_review: true
+  
+  # Review focus areas
+  focus_areas:
+    - security
+    - performance
+    - maintainability
+    - best_practices
+  
+  # Security-specific settings
+  security:
+    # Enable security vulnerability detection
+    vulnerability_detection: true
+    
+    # Security patterns to check
+    patterns:
+      - sql_injection
+      - xss
+      - authentication
+      - authorization
+      - input_validation
+      - sensitive_data
+      - cryptography
+      
+  # Code quality settings
+  quality:
+    # Enable code quality checks
+    enabled: true
+    
+    # Quality metrics to track
+    metrics:
+      - complexity
+      - duplication
+      - maintainability
+      - test_coverage
+
+# File patterns to include/exclude
+files:
+  # Include Swift files
+  include:
+    - "**/*.swift"
+    - "**/*.plist"
+    - "**/*.md"
+    
+  # Exclude generated and build files
+  exclude:
+    - "**/build/**"
+    - "**/DerivedData/**"
+    - "**/*.xcuserdata/**"
+    - "**/Pods/**"
+    - "**/.git/**"
+
+# Language-specific settings
+languages:
+  swift:
+    # Swift-specific security patterns
+    security_patterns:
+      - force_unwrapping
+      - unsafe_memory_access
+      - keychain_usage
+      - network_security
+      
+    # Swift best practices
+    best_practices:
+      - naming_conventions
+      - error_handling
+      - memory_management
+      - concurrency_patterns
+
+# Custom rules for this project
+custom_rules:
+  # Database security
+  - name: "sql_injection_prevention"
+    pattern: "makeRequest.*endpoint.*\\("
+    message: "Potential SQL injection risk - use parameterized queries"
+    severity: "high"
+    
+  # Token security
+  - name: "token_exposure"
+    pattern: "(token|key|secret|password).*=.*['\"]"
+    message: "Potential secret exposure - use environment variables"
+    severity: "critical"
+    
+  # Input validation
+  - name: "input_validation"
+    pattern: "TextField.*text.*\\$"
+    message: "User input should be validated and sanitized"
+    severity: "medium"
+
+# Notification settings
+notifications:
+  # Enable notifications for security issues
+  security_issues: true
+  
+  # Enable notifications for critical issues
+  critical_issues: true
+  
+  # Notification channels
+  channels:
+    - github_comments
+    - github_reviews
+
+# Integration settings
+integrations:
+  github:
+    # Enable GitHub integration
+    enabled: true
+    
+    # Auto-approve low-risk changes
+    auto_approve_low_risk: false
+    
+    # Request changes for high-risk issues
+    request_changes_high_risk: true
