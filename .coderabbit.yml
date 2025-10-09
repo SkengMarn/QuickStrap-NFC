@@ -3,42 +3,13 @@
 
 # Review settings
 reviews:
-  # Enable automatic reviews on pull requests
-  auto_review: true
-  
-  # Review focus areas
-  focus_areas:
-    - security
-    - performance
-    - maintainability
-    - best_practices
-  
-  # Security-specific settings
-  security:
-    # Enable security vulnerability detection
-    vulnerability_detection: true
-    
-    # Security patterns to check
-    patterns:
-      - sql_injection
-      - xss
-      - authentication
-      - authorization
-      - input_validation
-      - sensitive_data
-      - cryptography
-      
-  # Code quality settings
-  quality:
-    # Enable code quality checks
+  auto_review:
     enabled: true
-    
-    # Quality metrics to track
-    metrics:
-      - complexity
-      - duplication
-      - maintainability
-      - test_coverage
+    auto_incremental_review: true
+  high_level_summary: true
+  tools:
+    markdownlint:
+      enabled: true
 
 # File patterns to include/exclude
 files:
