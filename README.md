@@ -3,6 +3,7 @@
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
 [![iOS](https://img.shields.io/badge/iOS-15.0+-blue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CodeRabbit](https://img.shields.io/coderabbit/prs/github/SkengMarn/QuickStrap-NFC?utm_source=oss&utm_medium=github&utm_campaign=SkengMarn%2FQuickStrap-NFC&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 ## 🎯 Overview
 
