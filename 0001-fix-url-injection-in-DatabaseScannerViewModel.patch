@@ -1,0 +1,100 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 1/5] Fix URL injection in DatabaseScannerViewModel query builders
+
+Replace raw string interpolation with URLComponents to properly
+percent-encode all query parameters (nfc_id, wristband_id, event_id,
+timestamps). This prevents malformed URLs and potential filter injection
+attacks when IDs contain special characters.
+
+---
+ coderabbit_analysis/DatabaseScannerViewModel.swift | 52 ++++++++++++++++----
+ 1 file changed, 43 insertions(+), 9 deletions(-)
+
+diff --git a/coderabbit_analysis/DatabaseScannerViewModel.swift b/coderabbit_analysis/DatabaseScannerViewModel.swift
+index abc1234..def5678 100644
+--- a/coderabbit_analysis/DatabaseScannerViewModel.swift
++++ b/coderabbit_analysis/DatabaseScannerViewModel.swift
+@@ -173,9 +173,16 @@ class DatabaseScannerViewModel: NSObject, ObservableObject {
+             // Step 2: Validate Wristband - Query wristbands table
+             print("🔍 [DEBUG] Step 2: Looking up wristband: \(nfcId)")
+
+-            let wristbands: [Wristband] = try await supabaseService.makeRequest(
+-                endpoint: "rest/v1/wristbands?nfc_id=eq.\(nfcId)",
++            // Build query with proper URL encoding to prevent injection
++            var components = URLComponents()
++            components.queryItems = [
++                URLQueryItem(name: "nfc_id", value: "eq.\(nfcId)")
++            ]
++            let queryString = components.percentEncodedQuery ?? ""
++
++            let wristbands: [Wristband] = try await supabaseService.makeRequest(
++                endpoint: "rest/v1/wristbands?\(queryString)",
+                 method: "GET",
+                 body: nil,
+                 responseType: [Wristband].self
+@@ -348,9 +355,20 @@ class DatabaseScannerViewModel: NSObject, ObservableObject {
+                 return
+             }
+
+-            let recentCheckins: [CheckinLog] = try await supabaseService.makeRequest(
+-                endpoint: "rest/v1/checkin_logs?wristband_id=eq.\(wristbandId)&event_id=eq.\(eventId)&timestamp=gte.\(isoFormatter.string(from: thirtyMinutesAgo))&status=eq.success&order=timestamp.desc&limit=1",
++            // Build query with proper URL encoding to prevent injection
++            let timestampValue = isoFormatter.string(from: thirtyMinutesAgo)
++            var components = URLComponents()
++            components.queryItems = [
++                URLQueryItem(name: "wristband_id", value: "eq.\(wristbandId)"),
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "timestamp", value: "gte.\(timestampValue)"),
++                URLQueryItem(name: "status", value: "eq.success"),
++                URLQueryItem(name: "order", value: "timestamp.desc"),
++                URLQueryItem(name: "limit", value: "1")
++            ]
++            let queryString = components.percentEncodedQuery ?? ""
++
++            let recentCheckins: [CheckinLog] = try await supabaseService.makeRequest(
++                endpoint: "rest/v1/checkin_logs?\(queryString)",
+                 method: "GET",
+                 body: nil,
+                 responseType: [CheckinLog].self
+@@ -619,14 +637,30 @@ class DatabaseScannerViewModel: NSObject, ObservableObject {
+                 let count: Int
+             }
+
+-            let todayResult: [CheckinCount] = try await supabaseService.makeRequest(
+-                endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&timestamp=gte.\(today.ISO8601Format())&timestamp=lt.\(tomorrow.ISO8601Format())&select=count",
++            // Build today query with proper URL encoding
++            var todayComponents = URLComponents()
++            todayComponents.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "timestamp", value: "gte.\(today.ISO8601Format())"),
++                URLQueryItem(name: "timestamp", value: "lt.\(tomorrow.ISO8601Format())"),
++                URLQueryItem(name: "select", value: "count")
++            ]
++            let todayQueryString = todayComponents.percentEncodedQuery ?? ""
++
++            let todayResult: [CheckinCount] = try await supabaseService.makeRequest(
++                endpoint: "rest/v1/checkin_logs?\(todayQueryString)",
+                 method: "GET",
+                 body: nil,
+                 responseType: [CheckinCount].self
+             )
+-
+-            let totalResult: [CheckinCount] = try await supabaseService.makeRequest(
+-                endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&select=count",
++
++            // Build total query with proper URL encoding
++            var totalComponents = URLComponents()
++            totalComponents.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "select", value: "count")
++            ]
++            let totalQueryString = totalComponents.percentEncodedQuery ?? ""
++
++            let totalResult: [CheckinCount] = try await supabaseService.makeRequest(
++                endpoint: "rest/v1/checkin_logs?\(totalQueryString)",
+                 method: "GET",
+                 body: nil,
+                 responseType: [CheckinCount].self
+--
+2.39.0

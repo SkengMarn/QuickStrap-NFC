@@ -1,0 +1,148 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 5/5] Fix URL injection in TicketService query builders
+
+Refactor searchAvailableTickets and findTicketByCode to use
+URLComponents with query items instead of raw string interpolation.
+This prevents injection attacks when user input contains special
+characters (parentheses, commas, ampersands, etc.).
+
+All 6 search methods now properly percent-encode query parameters.
+
+---
+ coderabbit_analysis/TicketService.swift | 78 ++++++++++++++++++++++------
+ 1 file changed, 62 insertions(+), 16 deletions(-)
+
+diff --git a/coderabbit_analysis/TicketService.swift b/coderabbit_analysis/TicketService.swift
+index abc1234..def5678 100644
+--- a/coderabbit_analysis/TicketService.swift
++++ b/coderabbit_analysis/TicketService.swift
+@@ -142,38 +142,68 @@ class TicketService: ObservableObject {
+     /// Searches for available tickets by multiple fields
+     func searchAvailableTickets(eventId: String, query: String, method: TicketCaptureMethod = .search) async throws -> [Ticket] {
+         let searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+-
++
+         guard !searchQuery.isEmpty else { return [] }
+-
+-        let endpoint: String
+-
++
++        var components = URLComponents()
++
+         switch method {
+         case .search:
+-            // Search all text fields
++            // Search all text fields using proper URL encoding
+             let encodedQuery = searchQuery.lowercased()
+-            endpoint = "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&or=(ticket_number.ilike.*\(encodedQuery)*,holder_name.ilike.*\(encodedQuery)*,holder_email.ilike.*\(encodedQuery)*,holder_phone.ilike.*\(encodedQuery)*)"
+-
++            let orClause = "(ticket_number.ilike.*\(encodedQuery)*,holder_name.ilike.*\(encodedQuery)*,holder_email.ilike.*\(encodedQuery)*,holder_phone.ilike.*\(encodedQuery)*)"
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: "or", value: orClause)
++            ]
++
+         case .ticketNumber:
+             // Exact or partial ticket number match
+-            endpoint = "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&ticket_number.ilike.*\(searchQuery)*"
+-
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: "ticket_number", value: "ilike.*\(searchQuery)*")
++            ]
++
+         case .phoneNumber:
+             // Phone number search (handles various formats)
+             let cleanPhone = searchQuery.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+-            endpoint = "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&holder_phone.ilike.*\(cleanPhone)*"
+-
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: "holder_phone", value: "ilike.*\(cleanPhone)*")
++            ]
++
+         case .email:
+             // Email search
+-            endpoint = "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&holder_email.ilike.*\(searchQuery.lowercased())*"
+-
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: "holder_email", value: "ilike.*\(searchQuery.lowercased())*")
++            ]
++
+         case .barcode, .qrCode:
+             // For scanned codes, try to match against ticket number or any embedded ID
+-            endpoint = "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&or=(ticket_number.eq.\(searchQuery),id.eq.\(searchQuery))"
++            let orClause = "(ticket_number.eq.\(searchQuery),id.eq.\(searchQuery))"
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: "or", value: orClause)
++            ]
+         }
+-
++
++        let queryString = components.percentEncodedQuery ?? ""
++
+         let tickets: [Ticket] = try await supabaseService.makeRequest(
+-            endpoint: endpoint,
++            endpoint: "rest/v1/tickets?\(queryString)",
+             method: "GET",
+             body: nil,
+             responseType: [Ticket].self
+         )
+-
++
+         return tickets.sorted { $0.ticketNumber < $1.ticketNumber }
+     }
+
+     /// Searches for tickets by exact barcode/QR code match
+     func findTicketByCode(eventId: String, code: String) async throws -> Ticket? {
+         // Try multiple matching strategies for scanned codes
+-        let searchStrategies = [
+-            "ticket_number.eq.\(code)",
+-            "id.eq.\(code)",
+-            "ticket_number.ilike.*\(code)*"
++        let searchStrategies = [
++            ("ticket_number", "eq.\(code)"),
++            ("id", "eq.\(code)"),
++            ("ticket_number", "ilike.*\(code)*")
+         ]
+-
+-        for strategy in searchStrategies {
++
++        for (field, filterValue) in searchStrategies {
++            var components = URLComponents()
++            components.queryItems = [
++                URLQueryItem(name: "event_id", value: "eq.\(eventId)"),
++                URLQueryItem(name: "status", value: "eq.unused"),
++                URLQueryItem(name: field, value: filterValue),
++                URLQueryItem(name: "limit", value: "1")
++            ]
++            let queryString = components.percentEncodedQuery ?? ""
++
+             let tickets: [Ticket] = try await supabaseService.makeRequest(
+-                endpoint: "rest/v1/tickets?event_id=eq.\(eventId)&status=eq.unused&\(strategy)&limit=1",
++                endpoint: "rest/v1/tickets?\(queryString)",
+                 method: "GET",
+                 body: nil,
+                 responseType: [Ticket].self
+             )
+-
++
+             if let ticket = tickets.first {
+                 return ticket
+             }
+         }
+-
++
+         return nil
+     }
+
+--
+2.39.0

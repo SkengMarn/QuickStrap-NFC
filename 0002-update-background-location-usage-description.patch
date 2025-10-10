@@ -1,0 +1,28 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 2/5] Update background location usage description
+
+Update NSLocationAlwaysAndWhenInUseUsageDescription to explicitly
+state continuous background monitoring requirement, purpose (gate
+proximity verification), and data handling scope to comply with
+App Store guidelines and user transparency requirements.
+
+---
+ coderabbit_analysis/Info.plist | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/coderabbit_analysis/Info.plist b/coderabbit_analysis/Info.plist
+index abc1234..def5678 100644
+--- a/coderabbit_analysis/Info.plist
++++ b/coderabbit_analysis/Info.plist
+@@ -7,7 +7,7 @@
+ 	<key>NSLocationWhenInUseUsageDescription</key>
+ 	<string>This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.</string>
+ 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+-	<string>This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.</string>
++	<string>This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.</string>
+ 	<key>NSCameraUsageDescription</key>
+ 	<string>This app uses the camera to scan ticket barcodes and QR codes for linking tickets to wristbands during event check-in.</string>
+ </dict>
+--
+2.39.0

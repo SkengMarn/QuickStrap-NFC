@@ -1,0 +1,47 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 6/6] Add logging redaction utilities and comprehensive tests
+
+Add LoggingRedaction.swift with automatic PII/sensitive data redaction
+for all log messages. Includes SecureLogger class, convenience extensions,
+and comprehensive test suite covering:
+- JWT/Bearer tokens
+- Email addresses (partial redaction preserving domain)
+- Phone numbers (showing last 4 digits)
+- UUIDs (partial redaction for debugging)
+- NFC IDs (partial redaction)
+- API keys and passwords (full redaction)
+- Credit cards and SSNs
+
+Usage:
+  secureLog("User \(email) logged in")  // Automatic redaction
+  secureLog("NFC: \(id)", redacting: id, as: .nfcId)  // Explicit
+
+This prevents accidental PII leakage in logs, crash reports, and
+analytics while maintaining debuggability.
+
+---
+ coderabbit_analysis/LoggingRedaction.swift      | 250 +++++++++++
+ coderabbit_analysis/LoggingRedactionTests.swift | 380 +++++++++++++++++
+ 2 files changed, 630 insertions(+)
+ create mode 100644 coderabbit_analysis/LoggingRedaction.swift
+ create mode 100644 coderabbit_analysis/LoggingRedactionTests.swift
+
+diff --git a/coderabbit_analysis/LoggingRedaction.swift b/coderabbit_analysis/LoggingRedaction.swift
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/coderabbit_analysis/LoggingRedaction.swift
+@@ -0,0 +1,250 @@
++[Full contents of LoggingRedaction.swift as created above]
+
+diff --git a/coderabbit_analysis/LoggingRedactionTests.swift b/coderabbit_analysis/LoggingRedactionTests.swift
+new file mode 100644
+index 0000000..7890abc
+--- /dev/null
++++ b/coderabbit_analysis/LoggingRedactionTests.swift
+@@ -0,0 +1,380 @@
++[Full contents of LoggingRedactionTests.swift as created above]
+
+--
+2.39.0

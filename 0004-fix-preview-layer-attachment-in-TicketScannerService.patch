@@ -1,0 +1,41 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 4/5] Fix preview layer attachment in TicketScannerService
+
+Modify updateUIView to check for preview layer attachment and add it
+if not already present. This fixes the issue where the preview layer
+doesn't appear if the scanner session starts after view creation.
+
+Removes any existing preview layers before adding new one to prevent
+duplicates.
+
+---
+ coderabbit_analysis/TicketScannerService.swift | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/coderabbit_analysis/TicketScannerService.swift b/coderabbit_analysis/TicketScannerService.swift
+index abc1234..def5678 100644
+--- a/coderabbit_analysis/TicketScannerService.swift
++++ b/coderabbit_analysis/TicketScannerService.swift
+@@ -158,9 +158,17 @@ struct TicketScannerView: UIViewRepresentable {
+     }
+
+     func updateUIView(_ uiView: UIView, context: Context) {
+-        // Update preview layer frame if needed
++        // Update preview layer frame and attach if not already present
+         if let previewLayer = scannerService.getPreviewLayer() {
+             previewLayer.frame = uiView.bounds
++
++            // Check if the preview layer is already attached
++            if previewLayer.superlayer != uiView.layer {
++                // Remove any existing preview layers first
++                uiView.layer.sublayers?.removeAll(where: { $0 is AVCaptureVideoPreviewLayer })
++
++                // Add the preview layer
++                uiView.layer.addSublayer(previewLayer)
++            }
+         }
+     }
+ }
+--
+2.39.0

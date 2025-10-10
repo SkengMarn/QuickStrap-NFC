@@ -1,0 +1,137 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-10-11T00:00:00Z",
+  "summary": "Security fixes for URL injection and token storage vulnerabilities",
+  "changes": [
+    {
+      "file": "coderabbit_analysis/DatabaseScannerViewModel.swift",
+      "type": "security",
+      "severity": "high",
+      "description": "Fix URL injection in query builders by using URLComponents with percent encoding",
+      "patches": [
+        {
+          "location": "lines 176-188",
+          "function": "processNFC",
+          "before": "endpoint: \"rest/v1/wristbands?nfc_id=eq.\\(nfcId)\"",
+          "after": "URLComponents with percentEncodedQuery",
+          "vulnerability": "Raw string interpolation allows malformed URLs and query filter injection",
+          "fix": "Use URLComponents.queryItems with URLQueryItem for automatic percent encoding"
+        },
+        {
+          "location": "lines 357-375",
+          "function": "checkForRecentEntry",
+          "before": "endpoint: \"rest/v1/checkin_logs?wristband_id=eq.\\(wristbandId)&event_id=eq.\\(eventId)&timestamp=gte.\\(isoFormatter.string(from: thirtyMinutesAgo))&status=eq.success&order=timestamp.desc&limit=1\"",
+          "after": "URLComponents with individual query items",
+          "vulnerability": "ISO timestamp and UUID values not percent-encoded, potential injection",
+          "fix": "Build query with URLComponents using separate URLQueryItem for each parameter"
+        },
+        {
+          "location": "lines 642-672",
+          "function": "loadStats",
+          "before": "Raw string interpolation in two queries",
+          "after": "Two separate URLComponents instances with query items",
+          "vulnerability": "Event IDs and timestamps not percent-encoded",
+          "fix": "Use URLComponents for both today and total queries"
+        }
+      ]
+    },
+    {
+      "file": "coderabbit_analysis/Info.plist",
+      "type": "compliance",
+      "severity": "medium",
+      "description": "Update background location usage description to be explicit about continuous monitoring",
+      "patches": [
+        {
+          "location": "line 10",
+          "key": "NSLocationAlwaysAndWhenInUseUsageDescription",
+          "before": "This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.",
+          "after": "This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.",
+          "vulnerability": "Vague description may be rejected by App Store or mislead users",
+          "fix": "Explicit mention of background usage, purpose, and data handling"
+        }
+      ]
+    },
+    {
+      "file": "coderabbit_analysis/SupabaseService.swift",
+      "type": "security",
+      "severity": "critical",
+      "description": "Fix token storage vulnerabilities - use Keychain instead of UserDefaults",
+      "patches": [
+        {
+          "location": "lines 344-367",
+          "function": "signOut",
+          "before": "Only clears UserDefaults and in-memory state",
+          "after": "Calls SecureTokenStorage.clearAll() with error handling, then clears UserDefaults and in-memory state",
+          "vulnerability": "Tokens remain in Keychain after sign-out, potential session hijacking",
+          "fix": "Add SecureTokenStorage.clearAll() with do/catch error handling"
+        },
+        {
+          "location": "lines 182-194",
+          "function": "refreshToken",
+          "before": "guard let refreshToken = UserDefaults.standard.string(forKey: \"supabase_refresh_token\")",
+          "after": "let refreshToken = try SecureTokenStorage.retrieve(account: SecureTokenStorage.Account.refreshToken)",
+          "vulnerability": "Reads from insecure UserDefaults instead of Keychain",
+          "fix": "Use SecureTokenStorage.retrieve with proper error handling"
+        },
+        {
+          "location": "lines 214-232",
+          "function": "refreshTokenWithStoredRefreshToken",
+          "before": "UserDefaults.standard.set(response.accessToken, forKey: \"supabase_access_token\") and UserDefaults.standard.set(newRefreshToken, forKey: \"supabase_refresh_token\")",
+          "after": "SecureTokenStorage.store(token:for:) for both access and refresh tokens with error handling",
+          "vulnerability": "Stores refreshed tokens in UserDefaults, leaves stale Keychain values",
+          "fix": "Replace UserDefaults with SecureTokenStorage.store calls in do/catch block"
+        }
+      ]
+    },
+    {
+      "file": "coderabbit_analysis/TicketScannerService.swift",
+      "type": "bug",
+      "severity": "medium",
+      "description": "Fix preview layer not appearing if scanner starts after view creation",
+      "patches": [
+        {
+          "location": "lines 159-173",
+          "function": "updateUIView",
+          "before": "Only updates frame: previewLayer.frame = uiView.bounds",
+          "after": "Checks if layer is attached, removes old layers, adds preview layer if needed",
+          "vulnerability": "Preview layer missing if session starts after makeUIView completes",
+          "fix": "Add superlayer check and conditional addSublayer in updateUIView"
+        }
+      ]
+    },
+    {
+      "file": "coderabbit_analysis/TicketService.swift",
+      "type": "security",
+      "severity": "high",
+      "description": "Fix URL injection in ticket search query builders",
+      "patches": [
+        {
+          "location": "lines 143-206",
+          "function": "searchAvailableTickets",
+          "before": "Raw string interpolation for all 6 search methods with user input",
+          "after": "URLComponents with queryItems for each case, percent-encoded values",
+          "vulnerability": "User-controlled searchQuery interpolated directly, allows filter mutation",
+          "fix": "Refactor all switch cases to use URLComponents.queryItems with URLQueryItem"
+        },
+        {
+          "location": "lines 209-240",
+          "function": "findTicketByCode",
+          "before": "String array of raw filter strings: \"ticket_number.eq.\\(code)\"",
+          "after": "Tuple array with (field, value) pairs, URLComponents per strategy",
+          "vulnerability": "Code value not percent-encoded, parentheses/commas can break query",
+          "fix": "Use URLComponents with queryItems for each search strategy iteration"
+        }
+      ]
+    }
+  ],
+  "testing": {
+    "required_tests": [
+      "URL encoding: Test with IDs containing special characters (?, &, =, %, spaces)",
+      "Keychain operations: Verify tokens stored/retrieved/cleared correctly",
+      "Sign out flow: Confirm Keychain cleared and no token leakage",
+      "Token refresh: Verify new tokens saved to Keychain not UserDefaults",
+      "Preview layer: Test scanner with delayed session start",
+      "Ticket search: Test with special characters in phone/email/name queries"
+    ]
+  }
+}

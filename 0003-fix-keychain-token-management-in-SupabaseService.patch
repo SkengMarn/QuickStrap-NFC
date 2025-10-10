@@ -1,0 +1,104 @@
+From: Claude Code <noreply@anthropic.com>
+Date: Sat, 11 Oct 2025 00:00:00 +0000
+Subject: [PATCH 3/5] Fix Keychain token management in SupabaseService
+
+Three critical fixes:
+1. Add SecureTokenStorage.clearAll() to signOut() with error handling
+2. Replace UserDefaults refresh token retrieval with Keychain
+3. Persist refreshed tokens to Keychain instead of UserDefaults
+
+This prevents token leakage on sign-out and ensures consistent use
+of secure Keychain storage throughout the authentication lifecycle.
+
+---
+ coderabbit_analysis/SupabaseService.swift | 52 ++++++++++++++++++++------
+ 1 file changed, 41 insertions(+), 11 deletions(-)
+
+diff --git a/coderabbit_analysis/SupabaseService.swift b/coderabbit_analysis/SupabaseService.swift
+index abc1234..def5678 100644
+--- a/coderabbit_analysis/SupabaseService.swift
++++ b/coderabbit_analysis/SupabaseService.swift
+@@ -179,12 +179,16 @@ class SupabaseService: ObservableObject {
+         }
+     }
+
+     private func refreshToken() async throws {
+-        guard let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") else {
+-            print("❌ No refresh token available")
++        // Retrieve refresh token from Keychain instead of UserDefaults
++        do {
++            let refreshToken = try SecureTokenStorage.retrieve(account: SecureTokenStorage.Account.refreshToken)
++            try await refreshTokenWithStoredRefreshToken(refreshToken)
++        } catch {
++            print("❌ No refresh token available in Keychain: \(error)")
+             await MainActor.run {
+                 forceLogout()
+             }
+             throw AuthError.noToken
+         }
+-
+-        try await refreshTokenWithStoredRefreshToken(refreshToken)
+     }
+
+     func refreshTokenWithStoredRefreshTokenPublic(_ refreshToken: String) async throws {
+@@ -209,15 +213,25 @@ class SupabaseService: ObservableObject {
+             )
+
+             await MainActor.run {
+                 print("✅ Token refresh successful!")
+                 accessToken = response.accessToken
+-                UserDefaults.standard.set(response.accessToken, forKey: "supabase_access_token")
+-
+-                if let newRefreshToken = response.refreshToken {
+-                    UserDefaults.standard.set(newRefreshToken, forKey: "supabase_refresh_token")
++
++                // Store refreshed tokens in Keychain instead of UserDefaults
++                do {
++                    try SecureTokenStorage.store(token: response.accessToken, for: SecureTokenStorage.Account.accessToken)
++
++                    if let newRefreshToken = response.refreshToken {
++                        try SecureTokenStorage.store(token: newRefreshToken, for: SecureTokenStorage.Account.refreshToken)
++                        print("💾 Refreshed tokens stored securely in Keychain")
++                    }
++                } catch {
++                    print("❌ Failed to store refreshed tokens in Keychain: \(error)")
++                    // Continue with authentication even if Keychain storage fails
+                 }
+-
++
+                 isAuthenticated = true
+             }
+         } catch {
+@@ -341,11 +355,27 @@ class SupabaseService: ObservableObject {
+     }
+
+     @MainActor
+     func signOut() {
+         print("🚪 User signing out")
+-        UserDefaults.standard.removeObject(forKey: "supabase_access_token")
+-        UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
+-        UserDefaults.standard.removeObject(forKey: "user_email")
++
++        // Clear Keychain tokens
++        do {
++            try SecureTokenStorage.clearAll()
++            print("✅ Keychain tokens cleared successfully")
++        } catch {
++            print("❌ Failed to clear Keychain tokens: \(error)")
++            errorMessage = "Warning: Failed to clear secure storage during sign out"
++        }
++
++        // Clear UserDefaults (legacy storage)
++        UserDefaults.standard.removeObject(forKey: "supabase_access_token")
++        UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
++        UserDefaults.standard.removeObject(forKey: "user_email")
++
++        // Clear in-memory state
+         accessToken = nil
+         currentUser = nil
+         currentEvent = nil
+         isAuthenticated = false
+         errorMessage = nil
+     }
+--
+2.39.0
