@@ -7,11 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D100A84F2E8411A400B82C8B /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = D100A84E2E8411A400B82C8B /* Auth */; };
-		D100A8512E8411A400B82C8B /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = D100A8502E8411A400B82C8B /* Functions */; };
-		D100A8532E8411A400B82C8B /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = D100A8522E8411A400B82C8B /* PostgREST */; };
-		D100A8552E8411A400B82C8B /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = D100A8542E8411A400B82C8B /* Realtime */; };
-		D100A8572E8411A400B82C8B /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = D100A8562E8411A400B82C8B /* Storage */; };
+		D100A84F2E8411A400B82C8B /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D100A84E2E8411A400B82C8B /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -125,11 +121,7 @@
 			);
 			name = NFCDemo;
 			packageProductDependencies = (
-				D100A84E2E8411A400B82C8B /* Auth */,
-				D100A8502E8411A400B82C8B /* Functions */,
-				D100A8522E8411A400B82C8B /* PostgREST */,
-				D100A8542E8411A400B82C8B /* Realtime */,
-				D100A8562E8411A400B82C8B /* Storage */,
+				D100A84E2E8411A400B82C8B /* Supabase */,
 			);
 			productName = NFCDemo;
 			productReference = D100A8202E83CF5100B82C8B /* NFCDemo.app */;
@@ -608,30 +600,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		D100A84E2E8411A400B82C8B /* Auth */ = {
+		D100A84E2E8411A400B82C8B /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Auth;
-		};
-		D100A8502E8411A400B82C8B /* Functions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Functions;
-		};
-		D100A8522E8411A400B82C8B /* PostgREST */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = PostgREST;
-		};
-		D100A8542E8411A400B82C8B /* Realtime */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Realtime;
-		};
-		D100A8562E8411A400B82C8B /* Storage */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Storage;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
