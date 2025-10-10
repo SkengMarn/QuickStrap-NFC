@@ -37,22 +37,9 @@
 		D100A8372E83CF5700B82C8B /* NFCDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NFCDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D100A84C2E83DE4C00B82C8B /* Exceptions for "NFCDemo" folder in "NFCDemo" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = D100A81F2E83CF5100B82C8B /* NFCDemo */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D100A8222E83CF5100B82C8B /* NFCDemo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				D100A84C2E83DE4C00B82C8B /* Exceptions for "NFCDemo" folder in "NFCDemo" target */,
-			);
 			path = NFCDemo;
 			sourceTree = "<group>";
 		};
@@ -436,7 +423,11 @@
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NFCDemo/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "QuickStrap Field App";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to scan ticket barcodes and QR codes for linking tickets to wristbands during event check-in.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.";
 				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -470,7 +461,11 @@
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NFCDemo/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "QuickStrap Field App";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to scan ticket barcodes and QR codes for linking tickets to wristbands during event check-in.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.";
 				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -499,7 +494,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
-				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCDemoTests;
@@ -518,7 +512,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
-				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCDemoTests;
@@ -536,7 +529,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
-				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCDemoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -553,7 +545,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3A7K9T2WRC;
-				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = QuickStrapSolutions.NFCDemoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
