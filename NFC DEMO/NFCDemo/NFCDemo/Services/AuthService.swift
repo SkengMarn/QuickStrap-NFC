@@ -241,6 +241,61 @@ class AuthService: ObservableObject {
         return base64
     }
 
+    // MARK: - Password Reset
+
+    @MainActor
+    func sendPasswordResetEmail(email: String) async throws {
+        logger.info("Initiating password reset for: \(email)", category: "Auth")
+
+        // Validate email
+        if email.isEmpty || !email.contains("@") {
+            throw AppError.validationFailed([ValidationFailure("email", "Please enter a valid email address")])
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await repository.sendPasswordResetEmail(email: email)
+            logger.info("Password reset email sent successfully to: \(email)", category: "Auth")
+        } catch {
+            logger.error("Failed to send password reset email: \(error.localizedDescription)", category: "Auth")
+            throw error.asAppError()
+        }
+    }
+
+    @MainActor
+    func updatePassword(newPassword: String) async throws {
+        logger.info("Attempting to update password", category: "Auth")
+
+        // Validate password
+        var failures: [ValidationFailure] = []
+        if newPassword.isEmpty {
+            failures.append(ValidationFailure("password", "Password is required"))
+        }
+        if newPassword.count < 6 {
+            failures.append(ValidationFailure("password", "Password must be at least 6 characters"))
+        }
+        if !failures.isEmpty {
+            throw AppError.validationFailed(failures)
+        }
+
+        guard let token = accessToken else {
+            throw AppError.unauthorized
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await repository.updatePassword(newPassword: newPassword, accessToken: token)
+            logger.info("Password updated successfully", category: "Auth")
+        } catch {
+            logger.error("Failed to update password: \(error.localizedDescription)", category: "Auth")
+            throw error.asAppError()
+        }
+    }
+
     // MARK: - Token Provider for NetworkClient
 
     func configureNetworkClient() {

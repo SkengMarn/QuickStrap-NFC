@@ -30,24 +30,37 @@ class NetworkClient: NSObject {
     // For testing/mocking
     var tokenProvider: (() -> String?)?
 
+    private let maxRetryAttempts = 3
+    private let retryDelay: TimeInterval = 2.0 // Initial delay in seconds
+    
     private override init() {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        configuration.timeoutIntervalForResource = 60
+        // Increased timeouts for better reliability
+        configuration.timeoutIntervalForRequest = 60 // Increased from 30 to 60 seconds
+        configuration.timeoutIntervalForResource = 120 // Increased from 60 to 120 seconds
         configuration.waitsForConnectivity = true
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        
+        // Configure connection proxy dictionary if needed for debugging
+        #if DEBUG
+        // Uncomment to debug with proxy (e.g., Charles Proxy)
+        // configuration.connectionProxyDictionary = [
+        //     kCFNetworkProxiesHTTPEnable: 1,
+        //     kCFNetworkProxiesHTTPProxy: "127.0.0.1",
+        //     kCFNetworkProxiesHTTPPort: 8888
+        // ]
+        #endif
 
         self.config = AppConfiguration.shared
 
-        // Create session with self as delegate for certificate pinning
-        self.session = URLSession(configuration: configuration, delegate: nil, delegateQueue: nil)
+        // Create session with certificate pinning delegate
+        self.session = URLSession(
+            configuration: configuration,
+            delegate: certificatePinner,
+            delegateQueue: nil
+        )
 
         super.init()
-
-        // Recreate session with proper delegate
-        let delegatedSession = URLSession(configuration: configuration, delegate: certificatePinner, delegateQueue: nil)
-        // Note: In production, you'd use this delegated session
-        // For now, we keep the basic session to avoid breaking changes during migration
     }
 
     // MARK: - Generic Request Method
@@ -58,30 +71,120 @@ class NetworkClient: NSObject {
         body: Data? = nil,
         headers: [String: String]? = nil,
         requiresAuth: Bool = true,
-        responseType: T.Type
+        responseType: T.Type,
+        maxRetries: Int? = nil
     ) async throws -> T {
-        return try await logger.measureAsync("API Request: \(method.rawValue) \(endpoint)", category: "Network") {
-            // Build URL
-            guard let url = buildURL(endpoint: endpoint) else {
-                throw AppError.invalidConfiguration("Invalid URL for endpoint: \(endpoint)")
+        let maxAttempts = maxRetries ?? maxRetryAttempts
+        var lastError: Error?
+        
+        for attempt in 0..<maxAttempts {
+            do {
+                return try await executeSingleRequest(
+                    endpoint: endpoint,
+                    method: method,
+                    body: body,
+                    headers: headers,
+                    requiresAuth: requiresAuth,
+                    responseType: responseType,
+                    attempt: attempt
+                )
+            } catch {
+                lastError = error
+
+                // Don't retry for authentication or client errors (4xx)
+                if let appError = error as? AppError {
+                    switch appError {
+                    case .apiError(.unauthorized), .apiError(.forbidden), .authenticationFailed, .invalidCredentials:
+                        logger.error("Non-retryable error: \(error.localizedDescription)", category: "Network")
+                        throw error
+                    default:
+                        break
+                    }
+                }
+
+                // If not the last attempt, wait and retry
+                if attempt < maxAttempts - 1 {
+                    let delay = retryDelay * pow(2.0, Double(attempt)) // Exponential backoff
+                    logger.warning("Request failed (attempt \(attempt + 1)/\(maxAttempts)). Retrying in \(delay)s...", category: "Network")
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
             }
+        }
+        
+        // If we get here, all retries failed
+        logger.error("Request failed after \(maxAttempts) attempts. Last error: \(lastError?.localizedDescription ?? "Unknown")", category: "Network")
+        throw lastError ?? AppError.networkError(.timeout)
+    }
+    
+    private func executeSingleRequest<T: Decodable>(
+        endpoint: String,
+        method: HTTPMethod,
+        body: Data?,
+        headers: [String: String]?,
+        requiresAuth: Bool,
+        responseType: T.Type,
+        attempt: Int
+    ) async throws -> T {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        defer {
+            let duration = CFAbsoluteTimeGetCurrent() - startTime
+            logger.debug("API Request: \(method.rawValue) \(endpoint) (attempt \(attempt + 1)) took \(String(format: "%.3f", duration))s", category: "Network")
+        }
 
-            // Build request
-            var request = URLRequest(url: url)
-            request.httpMethod = method.rawValue
-            request.httpBody = body
+        // Build URL
+        guard let url = buildURL(endpoint: endpoint) else {
+            throw AppError.invalidConfiguration("Invalid URL for endpoint: \(endpoint)")
+        }
 
-            // Add headers
-            request = addHeaders(to: request, customHeaders: headers, requiresAuth: requiresAuth)
+        // Build request with timeout interval from session configuration
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: session.configuration.timeoutIntervalForRequest
+        )
+        request.httpMethod = method.rawValue
+        request.httpBody = body
 
-            // Log request
-            logRequest(request)
+        // Add headers
+        request = addHeaders(to: request, customHeaders: headers, requiresAuth: requiresAuth)
 
-            // Execute request
-            let (data, response) = try await session.data(for: request)
+        // Log request
+        logRequest(request)
+
+        // Create a task that can be cancelled
+        let task = session.dataTask(with: request)
+
+        // Execute request with timeout
+        do {
+            let (data, response): (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else if let data = data, let response = response {
+                        continuation.resume(returning: (data, response))
+                    } else {
+                        continuation.resume(throwing: AppError.networkError(.invalidResponse))
+                    }
+                }
+                task.resume()
+            }
 
             // Handle response
             return try handleResponse(data: data, response: response, responseType: responseType)
+        } catch let error as URLError {
+            // Handle specific URL errors
+            switch error.code {
+            case .timedOut:
+                throw AppError.networkError(.timeout)
+            case .notConnectedToInternet, .networkConnectionLost:
+                throw AppError.networkError(.noConnection)
+            case .secureConnectionFailed, .serverCertificateUntrusted, .clientCertificateRejected:
+                throw AppError.networkError(.sslError)
+            default:
+                throw AppError.networkError(.invalidResponse)
+            }
+        } catch {
+            throw error
         }
     }
 

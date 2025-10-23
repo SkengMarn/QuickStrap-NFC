@@ -320,8 +320,11 @@ struct TicketLinkingSettingsView: View {
                 createdBy: event.createdBy,
                 createdAt: event.createdAt,
                 updatedAt: Date(),
+                lifecycleStatus: event.lifecycleStatus,
+                organizationId: event.organizationId,
                 ticketLinkingMode: selectedMode,
-                allowUnlinkedEntry: allowUnlinkedEntry
+                allowUnlinkedEntry: allowUnlinkedEntry,
+                config: event.config
             )
             
             // Update current event in service

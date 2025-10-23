@@ -7,7 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D100A84F2E8411A400B82C8B /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D100A84E2E8411A400B82C8B /* Supabase */; };
+		D1C6C7E22E99D0CB0033F184 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D1C6C7E12E99D0CB0033F184 /* Supabase */; };
+		D1C6C7E32E99D0CB0033F185 /* CoreNFC.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1C6C7E42E99D0CB0033F186 /* CoreNFC.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +32,7 @@
 		D100A8202E83CF5100B82C8B /* NFCDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NFCDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D100A82D2E83CF5700B82C8B /* NFCDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NFCDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D100A8372E83CF5700B82C8B /* NFCDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NFCDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1C6C7E42E99D0CB0033F186 /* CoreNFC.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreNFC.framework; path = System/Library/Frameworks/CoreNFC.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -56,11 +58,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D100A8532E8411A400B82C8B /* PostgREST in Frameworks */,
-				D100A8512E8411A400B82C8B /* Functions in Frameworks */,
-				D100A84F2E8411A400B82C8B /* Auth in Frameworks */,
-				D100A8572E8411A400B82C8B /* Storage in Frameworks */,
-				D100A8552E8411A400B82C8B /* Realtime in Frameworks */,
+				D1C6C7E22E99D0CB0033F184 /* Supabase in Frameworks */,
+				D1C6C7E32E99D0CB0033F185 /* CoreNFC.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +87,7 @@
 				D100A8302E83CF5700B82C8B /* NFCDemoTests */,
 				D100A83A2E83CF5700B82C8B /* NFCDemoUITests */,
 				D100A8212E83CF5100B82C8B /* Products */,
+				D1C6C7E52E99D0CB0033F187 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -99,6 +99,14 @@
 				D100A8372E83CF5700B82C8B /* NFCDemoUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D1C6C7E52E99D0CB0033F187 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D1C6C7E42E99D0CB0033F186 /* CoreNFC.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -121,7 +129,7 @@
 			);
 			name = NFCDemo;
 			packageProductDependencies = (
-				D100A84E2E8411A400B82C8B /* Supabase */,
+				D1C6C7E12E99D0CB0033F184 /* Supabase */,
 			);
 			productName = NFCDemo;
 			productReference = D100A8202E83CF5100B82C8B /* NFCDemo.app */;
@@ -206,7 +214,7 @@
 			mainGroup = D100A8172E83CF5100B82C8B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				D1C6C7E02E99D0CB0033F184 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D100A8212E83CF5100B82C8B /* Products */;
@@ -417,11 +425,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "QuickStrap Field App";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to scan ticket barcodes and QR codes for linking tickets to wristbands during event check-in.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.";
-				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -455,11 +463,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "QuickStrap Field App";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to scan ticket barcodes and QR codes for linking tickets to wristbands during event check-in.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app requires continuous background location monitoring to verify gate proximity and prevent unauthorized NFC scanning when the app is not in use. Location data is used exclusively for gate verification and is not shared or stored beyond the check-in process.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app uses location services to verify gate proximity and prevent unauthorized scanning at wrong locations.";
-				INFOPLIST_KEY_NFCReaderUsageDescription = "This app uses NFC to scan event wristbands for check-in and attendance tracking.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "This app uses face ID to login into the user's account. ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -589,7 +597,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+		D1C6C7E02E99D0CB0033F184 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase-community/supabase-swift";
 			requirement = {
@@ -600,9 +608,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		D100A84E2E8411A400B82C8B /* Supabase */ = {
+		D1C6C7E12E99D0CB0033F184 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = D100A84D2E8411A400B82C8B /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			package = D1C6C7E02E99D0CB0033F184 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */

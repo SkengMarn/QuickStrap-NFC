@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct TicketCaptureSettingsView: View {
     @State private var preferences = TicketLinkingPreferences.default

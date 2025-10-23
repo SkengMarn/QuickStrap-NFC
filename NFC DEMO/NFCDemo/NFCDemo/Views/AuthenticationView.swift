@@ -12,6 +12,7 @@ struct AuthenticationView: View {
     @State private var errorMessage: String?
     @State private var agreedToTerms = false
     @State private var isBiometricAvailable = false
+    @State private var showingForgotPassword = false
     
     var body: some View {
         ZStack {
@@ -72,6 +73,9 @@ struct AuthenticationView: View {
         .onAppear {
             checkBiometricAvailability()
         }
+        .sheet(isPresented: $showingForgotPassword) {
+            ForgotPasswordView()
+        }
     }
     
     // MARK: - Header Section
@@ -112,12 +116,24 @@ struct AuthenticationView: View {
                 keyboardType: .emailAddress
             )
             
-            // Password Field
-            CustomSecureField(
-                title: "Password",
-                text: $password,
-                placeholder: "Enter your password"
-            )
+            // Password Field with Forgot Password link
+            VStack(alignment: .trailing, spacing: 8) {
+                CustomSecureField(
+                    title: "Password",
+                    text: $password,
+                    placeholder: "Enter your password"
+                )
+
+                if isLogin {
+                    Button(action: {
+                        showingForgotPassword = true
+                    }) {
+                        Text("Forgot Password?")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(hex: "#635BFF") ?? .blue)
+                    }
+                }
+            }
             
             // Registration Fields
             if !isLogin {

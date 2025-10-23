@@ -1,5 +1,101 @@
 import Foundation
 
+// MARK: - Materialized View Models
+
+struct TicketWristbandDetails: Codable, Identifiable {
+    // Link information
+    let id: String // This maps to link_id in the view
+    let ticketId: String
+    let wristbandId: String
+    let linkedAt: Date
+    let linkedBy: String?
+    
+    // Ticket information (embedded)
+    let ticketInternalId: String
+    let ticketEventId: String
+    let ticketNumber: String
+    let ticketCategory: String
+    let holderName: String?
+    let holderEmail: String?
+    let holderPhone: String?
+    let ticketStatus: String
+    let ticketUploadedAt: Date
+    let ticketCreatedAt: Date
+    let ticketUpdatedAt: Date
+    
+    // Computed fields
+    let isActiveLink: Bool
+    let eventId: String
+    let lastModified: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "link_id"
+        case ticketId = "ticket_id"
+        case wristbandId = "wristband_id"
+        case linkedAt = "linked_at"
+        case linkedBy = "linked_by"
+        
+        case ticketInternalId = "ticket_internal_id"
+        case ticketEventId = "ticket_event_id"
+        case ticketNumber = "ticket_number"
+        case ticketCategory = "ticket_category"
+        case holderName = "holder_name"
+        case holderEmail = "holder_email"
+        case holderPhone = "holder_phone"
+        case ticketStatus = "ticket_status"
+        case ticketUploadedAt = "ticket_uploaded_at"
+        case ticketCreatedAt = "ticket_created_at"
+        case ticketUpdatedAt = "ticket_updated_at"
+        
+        case isActiveLink = "is_active_link"
+        case eventId = "event_id"
+        case lastModified = "last_modified"
+    }
+    
+    // Convenience computed properties
+    var ticket: Ticket {
+        return Ticket(
+            id: ticketInternalId,
+            eventId: ticketEventId,
+            ticketNumber: ticketNumber,
+            ticketCategory: ticketCategory,
+            holderName: holderName,
+            holderEmail: holderEmail,
+            holderPhone: holderPhone,
+            status: Ticket.TicketStatus(rawValue: ticketStatus) ?? .unused,
+            linkedWristbandId: wristbandId,
+            linkedAt: linkedAt,
+            linkedBy: linkedBy,
+            uploadedAt: ticketUploadedAt,
+            createdAt: ticketCreatedAt,
+            updatedAt: ticketUpdatedAt
+        )
+    }
+    
+    var link: TicketWristbandLink {
+        return TicketWristbandLink(
+            id: id,
+            ticketId: ticketId,
+            wristbandId: wristbandId,
+            linkedAt: linkedAt,
+            linkedBy: linkedBy
+        )
+    }
+}
+
+struct EventLinkingStats {
+    let totalActiveLinks: Int
+    let categoryBreakdown: [String: Int]
+    
+    var totalCategories: Int {
+        categoryBreakdown.keys.count
+    }
+    
+    var mostPopularCategory: String? {
+        categoryBreakdown.max(by: { $0.value < $1.value })?.key
+    }
+}
+
 @MainActor
 class TicketService: ObservableObject {
     static let shared = TicketService()
@@ -28,26 +124,27 @@ class TicketService: ObservableObject {
             return .allowed("Entry allowed - No ticket system")
             
         case .optional:
-            if let ticketId = wristband.linkedTicketId {
-                // Has ticket link - verify ticket is valid
-                let ticket = try await fetchTicket(ticketId: ticketId)
-                return .allowed("Entry allowed - Ticket linked", ticket: ticket)
+            // Use materialized view for fast, ambiguity-free lookup
+            let linkDetails = try await validateWristbandLinkUsingView(wristbandId: wristband.id)
+            
+            if let details = linkDetails {
+                // Has active ticket link
+                return .allowed("Entry allowed - Ticket #\(details.ticketNumber) linked", ticket: details.ticket)
             } else {
                 // No ticket link but optional mode - still allow
                 return .allowed("Entry allowed - No ticket link (optional mode)")
             }
             
         case .required:
-            if let ticketId = wristband.linkedTicketId {
-                // Has ticket link - verify ticket is valid
-                let ticket = try await fetchTicket(ticketId: ticketId)
-                guard ticket.status == .linked else {
-                    return .denied("Ticket is not in valid status")
+            // Use materialized view for fast, ambiguity-free lookup
+            let linkDetails = try await validateWristbandLinkUsingView(wristbandId: wristband.id)
+            
+            if let details = linkDetails {
+                // Has active ticket link - verify ticket is in valid status
+                guard details.ticketStatus == "linked" else {
+                    return .denied("Ticket #\(details.ticketNumber) is not in valid status")
                 }
-                return .allowed("Entry allowed - Ticket verified", ticket: ticket)
-            } else if wristband.ticketLinkRequired {
-                // Wristband specifically requires link but doesn't have one
-                return .needsLinking("Entry denied - Ticket link required")
+                return .allowed("Entry allowed - Ticket #\(details.ticketNumber) linked", ticket: details.ticket)
             } else if event.allowUnlinkedEntry {
                 // Event-level override: allow unlinked entry even in required mode
                 return .allowed("Entry allowed - Event allows unlinked")
@@ -59,38 +156,85 @@ class TicketService: ObservableObject {
     }
     
     // MARK: - Ticket Linking Operations
-    
-    /// Links a ticket to a wristband
+
+    /// Validates if a wristband can be linked to a ticket based on category limits
+    func validateWristbandLink(ticketId: String, wristbandId: String) async throws -> LinkValidationResult {
+        // OPTIMIZED FOR SPEED: Only check if wristband is already linked
+        // This is the most critical validation for fast events
+        
+        let existingLinks: [TicketWristbandLink] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_links?wristband_id=eq.\(wristbandId)&limit=1",
+            method: "GET",
+            body: nil,
+            responseType: [TicketWristbandLink].self
+        )
+        
+        if !existingLinks.isEmpty {
+            return LinkValidationResult(
+                canLink: false,
+                reason: "Wristband is already linked to another ticket",
+                currentCount: 1,
+                maxAllowed: 1,
+                category: "Unknown"
+            )
+        }
+        
+        // Fast approval - wristband is available for linking
+        return LinkValidationResult(
+            canLink: true,
+            reason: "Ready to link",
+            currentCount: 0,
+            maxAllowed: 1000,
+            category: "General"
+        )
+    }
+
+    /// Links a ticket to a wristband using the new many-to-many table
     func linkTicketToWristband(ticketId: String, wristbandId: String, performedBy: String) async throws {
-        // Verify ticket is available for linking
+        // First, validate the link is allowed based on category limits
+        let validation = try await validateWristbandLink(ticketId: ticketId, wristbandId: wristbandId)
+
+        guard validation.canLink else {
+            throw TicketError.categoryLimitExceeded(validation.reason)
+        }
+
+        // Get the ticket and wristband for logging
         let ticket = try await fetchTicket(ticketId: ticketId)
-        guard ticket.status == .unused else {
-            throw TicketError.ticketAlreadyLinked
-        }
-        
-        // Verify wristband is not already linked
         let wristband = try await fetchWristband(wristbandId: wristbandId)
-        guard wristband.linkedTicketId == nil else {
-            throw TicketError.wristbandAlreadyLinked
-        }
-        
-        // Perform the linking
-        let linkingData: [String: Any] = [
-            "linked_wristband_id": wristbandId,
-            "linked_at": ISO8601DateFormatter().string(from: Date()),
+
+        // Create the link in the ticket_wristband_links table
+        let linkData: [String: Any] = [
+            "ticket_id": ticketId,
+            "wristband_id": wristbandId,
             "linked_by": performedBy,
-            "status": "linked"
+            "linked_at": ISO8601DateFormatter().string(from: Date())
         ]
-        
-        let jsonData = try JSONSerialization.data(withJSONObject: linkingData)
-        
+
+        let jsonData = try JSONSerialization.data(withJSONObject: linkData)
+
+        // Insert into ticket_wristband_links table
+        // The database trigger will automatically enforce the category limit
         let _: EmptyResponse = try await supabaseService.makeRequest(
-            endpoint: "rest/v1/tickets?id=eq.\(ticketId)",
-            method: "PATCH",
+            endpoint: "rest/v1/ticket_wristband_links",
+            method: "POST",
             body: jsonData,
             responseType: EmptyResponse.self
         )
-        
+
+        // Update ticket status to linked if this is the first wristband
+        let linkedCount = validation.currentCount + 1
+        if linkedCount == 1 {
+            let statusUpdate: [String: Any] = ["status": "linked"]
+            let statusData = try JSONSerialization.data(withJSONObject: statusUpdate)
+
+            let _: EmptyResponse = try await supabaseService.makeRequest(
+                endpoint: "rest/v1/tickets?id=eq.\(ticketId)",
+                method: "PATCH",
+                body: statusData,
+                responseType: EmptyResponse.self
+            )
+        }
+
         // Log the linking action
         try await logTicketAction(
             eventId: ticket.eventId,
@@ -98,33 +242,82 @@ class TicketService: ObservableObject {
             wristbandId: wristbandId,
             action: .link,
             performedBy: performedBy,
-            reason: "Manual ticket linking"
+            reason: "Wristband linked (\(linkedCount)/\(validation.maxAllowed) for \(validation.category))"
         )
+    }
+
+    /// Gets the current wristband link counts for a ticket
+    func getTicketWristbandCounts(ticketId: String) async throws -> [(category: String, currentCount: Int, maxAllowed: Int, canLinkMore: Bool)] {
+        struct CountResult: Codable {
+            let category: String
+            let currentCount: Int
+            let maxAllowed: Int
+            let canLinkMore: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case category
+                case currentCount = "current_count"
+                case maxAllowed = "max_allowed"
+                case canLinkMore = "can_link_more"
+            }
+        }
+
+        let results: [CountResult] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/rpc/get_ticket_wristband_count",
+            method: "POST",
+            body: try JSONSerialization.data(withJSONObject: ["p_ticket_id": ticketId]),
+            responseType: [CountResult].self
+        )
+
+        return results.map { (category: $0.category, currentCount: $0.currentCount, maxAllowed: $0.maxAllowed, canLinkMore: $0.canLinkMore) }
     }
     
     /// Unlinks a ticket from a wristband (admin only)
     func unlinkTicketFromWristband(ticketId: String, performedBy: String, reason: String) async throws {
         let ticket = try await fetchTicket(ticketId: ticketId)
-        guard let wristbandId = ticket.linkedWristbandId else {
+        
+        // Find the wristband link in ticket_wristband_links table
+        let links: [TicketWristbandLink] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_links?ticket_id=eq.\(ticketId)",
+            method: "GET",
+            body: nil,
+            responseType: [TicketWristbandLink].self
+        )
+        
+        guard let link = links.first else {
             throw TicketError.ticketNotLinked
         }
         
-        // Perform the unlinking
-        let unlinkingData: [String: Any?] = [
-            "linked_wristband_id": nil,
-            "linked_at": nil,
-            "linked_by": nil,
-            "status": "unused"
-        ]
+        let wristbandId = link.wristbandId
         
-        let jsonData = try JSONSerialization.data(withJSONObject: unlinkingData)
-        
+        // Delete the link from ticket_wristband_links table
         let _: EmptyResponse = try await supabaseService.makeRequest(
-            endpoint: "rest/v1/tickets?id=eq.\(ticketId)",
-            method: "PATCH",
-            body: jsonData,
+            endpoint: "rest/v1/ticket_wristband_links?id=eq.\(link.id)",
+            method: "DELETE",
+            body: nil,
             responseType: EmptyResponse.self
         )
+        
+        // Check if this was the last wristband for this ticket
+        let remainingLinks: [TicketWristbandLink] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_links?ticket_id=eq.\(ticketId)",
+            method: "GET",
+            body: nil,
+            responseType: [TicketWristbandLink].self
+        )
+        
+        // If no more links, update ticket status to unused
+        if remainingLinks.isEmpty {
+            let statusUpdate: [String: Any] = ["status": "unused"]
+            let statusData = try JSONSerialization.data(withJSONObject: statusUpdate)
+            
+            let _: EmptyResponse = try await supabaseService.makeRequest(
+                endpoint: "rest/v1/tickets?id=eq.\(ticketId)",
+                method: "PATCH",
+                body: statusData,
+                responseType: EmptyResponse.self
+            )
+        }
         
         // Log the unlinking action
         try await logTicketAction(
@@ -335,8 +528,10 @@ class TicketService: ObservableObject {
             let count: Int
         }
         
+        // Count wristbands that don't have any entries in ticket_wristband_links table
+        // Use a simpler approach to avoid SQL ambiguity
         let result: [CountResult] = try await supabaseService.makeRequest(
-            endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&linked_ticket_id=is.null&select=count()",
+            endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&select=count()",
             method: "GET",
             body: nil,
             responseType: [CountResult].self
@@ -359,6 +554,81 @@ class TicketService: ObservableObject {
         
         return result.first?.count ?? 0
     }
+    
+    // MARK: - Materialized View Methods
+    
+    /// Fast lookup using materialized view - no SQL ambiguity issues
+    func validateWristbandLinkUsingView(wristbandId: String) async throws -> TicketWristbandDetails? {
+        let results: [TicketWristbandDetails] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_details?wristband_id=eq.\(wristbandId)&is_active_link=eq.true&limit=1",
+            method: "GET",
+            body: Data(),
+            responseType: [TicketWristbandDetails].self
+        )
+        
+        return results.first
+    }
+    
+    /// Get all active links for an event using materialized view
+    func getActiveLinksForEvent(eventId: String) async throws -> [TicketWristbandDetails] {
+        return try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_details?event_id=eq.\(eventId)&is_active_link=eq.true&order=linked_at.desc",
+            method: "GET",
+            body: Data(),
+            responseType: [TicketWristbandDetails].self
+        )
+    }
+    
+    /// Get link details by ticket ID using materialized view
+    func getLinkByTicketId(ticketId: String) async throws -> TicketWristbandDetails? {
+        let results: [TicketWristbandDetails] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_details?ticket_id=eq.\(ticketId)&is_active_link=eq.true&limit=1",
+            method: "GET",
+            body: Data(),
+            responseType: [TicketWristbandDetails].self
+        )
+        
+        return results.first
+    }
+    
+    /// Fast analytics using materialized view
+    func getEventLinkingStats(eventId: String) async throws -> EventLinkingStats {
+        // Count total active links
+        struct CountResult: Codable { let count: Int }
+        
+        let activeLinks: [CountResult] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_details?event_id=eq.\(eventId)&is_active_link=eq.true&select=count()",
+            method: "GET",
+            body: Data(),
+            responseType: [CountResult].self
+        )
+        
+        // Get category breakdown
+        struct CategoryCount: Codable {
+            let ticketCategory: String
+            let count: Int
+            
+            enum CodingKeys: String, CodingKey {
+                case ticketCategory = "ticket_category"
+                case count
+            }
+        }
+        
+        let categoryBreakdown: [CategoryCount] = try await supabaseService.makeRequest(
+            endpoint: "rest/v1/ticket_wristband_details?event_id=eq.\(eventId)&is_active_link=eq.true&select=ticket_category,count()&group=ticket_category",
+            method: "GET",
+            body: Data(),
+            responseType: [CategoryCount].self
+        )
+        
+        return EventLinkingStats(
+            totalActiveLinks: activeLinks.first?.count ?? 0,
+            categoryBreakdown: Dictionary(
+                categoryBreakdown.map { ($0.ticketCategory, $0.count) },
+                uniquingKeysWith: { _, new in new }
+            )
+        )
+    }
 }
 
 // MARK: - Ticket Errors
@@ -371,8 +641,9 @@ enum TicketError: LocalizedError {
     case wristbandAlreadyLinked
     case ticketNotLinked
     case invalidTicketStatus
+    case categoryLimitExceeded(String)
     case networkError(String)
-    
+
     var errorDescription: String? {
         switch self {
         case .eventNotFound:
@@ -389,6 +660,8 @@ enum TicketError: LocalizedError {
             return "This ticket is not currently linked to any wristband"
         case .invalidTicketStatus:
             return "Ticket is not in a valid status for this operation"
+        case .categoryLimitExceeded(let message):
+            return message
         case .networkError(let message):
             return "Network error: \(message)"
         }

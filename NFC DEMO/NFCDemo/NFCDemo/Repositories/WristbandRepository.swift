@@ -12,15 +12,16 @@ class WristbandRepository {
     // MARK: - Wristband Operations
 
     func fetchWristbands(for eventId: String) async throws -> [Wristband] {
-        logger.info("Fetching wristbands for event: \(eventId)", category: "Wristbands")
+        logger.info("Fetching wristbands for parent event: \(eventId) (series_id IS NULL)", category: "Wristbands")
 
         do {
+            // Filter by series_id IS NULL to only get parent event wristbands
             let wristbands: [Wristband] = try await networkClient.get(
-                endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&is_active=eq.true&select=*",
+                endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&is_active=eq.true&series_id=is.null&select=*",
                 responseType: [Wristband].self
             )
 
-            logger.info("Fetched \(wristbands.count) wristbands", category: "Wristbands")
+            logger.info("Fetched \(wristbands.count) parent event wristbands (excluding series)", category: "Wristbands")
             return wristbands
         } catch {
             logger.error("Failed to fetch wristbands: \(error.localizedDescription)", category: "Wristbands")

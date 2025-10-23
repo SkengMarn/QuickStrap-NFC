@@ -284,23 +284,79 @@ struct TicketAnalytics {
     let noShowTickets: Int
     let fraudAttempts: Int
     let averageTicketPrice: Double
-    
+
     var linkingRate: Double {
         guard ticketsUploaded > 0 else { return 0 }
         return Double(ticketsLinked) / Double(ticketsUploaded)
     }
-    
+
     var attendanceRate: Double {
         guard ticketsLinked > 0 else { return 0 }
         return Double(ticketsScanned) / Double(ticketsLinked)
     }
-    
+
     var revenueProtection: Double {
         Double(fraudAttempts) * averageTicketPrice
     }
-    
+
     var utilizationRate: Double {
         guard ticketsUploaded > 0 else { return 0 }
         return Double(ticketsScanned) / Double(ticketsUploaded)
+    }
+}
+
+// MARK: - Event Category Limits
+
+struct EventCategoryLimit: Codable, Identifiable {
+    let id: String
+    let eventId: String
+    let category: String
+    let maxWristbands: Int
+    let createdAt: Date
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case eventId = "event_id"
+        case category
+        case maxWristbands = "max_wristbands"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+// MARK: - Ticket Wristband Link
+
+struct TicketWristbandLink: Codable, Identifiable {
+    let id: String
+    let ticketId: String
+    let wristbandId: String
+    let linkedAt: Date
+    let linkedBy: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case ticketId = "ticket_id"
+        case wristbandId = "wristband_id"
+        case linkedAt = "linked_at"
+        case linkedBy = "linked_by"
+    }
+}
+
+// MARK: - Link Validation Result
+
+struct LinkValidationResult: Codable {
+    let canLink: Bool
+    let reason: String
+    let currentCount: Int
+    let maxAllowed: Int
+    let category: String
+
+    enum CodingKeys: String, CodingKey {
+        case canLink = "can_link"
+        case reason
+        case currentCount = "current_count"
+        case maxAllowed = "max_allowed"
+        case category
     }
 }

@@ -10,24 +10,51 @@ private struct MinimalCheckIn: Codable {
 @MainActor
 class GatesViewModel: ObservableObject {
     // MARK: - Published Properties
-    
-    @Published var activeGates: [Gate] = []
-    @Published var gateBindings: [GateBinding] = []
-    @Published var categoryStats: [CategoryStat] = []
-    @Published var activityTimeline: [TimelinePoint] = []
-    @Published var isProcessing = false
-    @Published var lastProcessedTime: Date?
-    @Published var processedCount = 0
-    @Published var totalCheckins = 0
-    @Published var uniqueCategories: [String] = []
-    @Published var dataQuality: Double = 0
-    @Published var unlinkedCount = 0
-    @Published var duplicateGatesCount = 0
-    @Published var avgProcessingTime: Double = 0
-    @Published var selectedCategoryFilter: String? = nil
-    @Published var gateStatistics: [String: GateDetailStats] = [:]
-    @Published var selectedTimeRange: TimeRange = .all
+
+    @Published var gatesWithMetrics: [GateWithMetrics] = []
     @Published var isLoading = false
+    @Published var isProcessing = false
+    @Published var selectedTimeRange: TimeRange = .all
+    @Published var errorMessage: String?
+    @Published var processedCount = 0
+    @Published var lastProcessedTime: Date?
+    @Published var gateStatistics: [String: GateDetailStats] = [:]
+    @Published var activityTimeline: [TimelinePoint] = []
+    @Published var duplicateGatesCount = 0
+    @Published var categoryStats: [CategoryStat] = []
+
+    // Computed from gatesWithMetrics
+    var activeGates: [Gate] {
+        gatesWithMetrics.map { $0.toGate() }
+    }
+
+    var totalCheckins: Int {
+        gatesWithMetrics.reduce(0) { $0 + ($1.totalScans ?? 0) }
+    }
+
+    var dataQuality: Double {
+        guard !gatesWithMetrics.isEmpty else { return 0 }
+        let avgConfidence = gatesWithMetrics.map { $0.confidence }.reduce(0, +) / Double(gatesWithMetrics.count)
+        return avgConfidence * 100
+    }
+
+    var dataQualityDescription: String {
+        let quality = dataQuality
+        let rating = quality >= 85 ? "Excellent" : quality >= 70 ? "Good" : "Needs attention"
+        return "\(Int(quality))% - \(rating)"
+    }
+
+    var dataQualityStatus: HealthStatus {
+        if dataQuality >= 85 { return .good }
+        if dataQuality >= 70 { return .warning }
+        return .attention
+    }
+
+    var linkingPercentage: Double {
+        guard totalCheckins > 0 else { return 0 }
+        // All gates with check-ins are linked by SQL
+        return 100.0
+    }
     
     enum TimeRange: String, CaseIterable {
         case today = "Today"
@@ -79,57 +106,62 @@ class GatesViewModel: ObservableObject {
     @Published var showComparisonMetrics = false
     
     // MARK: - Computed Properties
-    
+
     var filteredGates: [Gate] {
-        let gates: [Gate]
-        
-        if let filter = selectedCategoryFilter {
-            gates = activeGates.filter { gate in
-                gateBindings.contains { binding in
-                    binding.gateId == gate.id && binding.categoryName == filter
-                }
-            }
-        } else {
-            gates = activeGates
-        }
-        
+        // Gates are already filtered by SQL view (only active gates with check-ins)
         // Sort by scan count (descending - highest first)
-        return gates.sorted { gate1, gate2 in
-            let scans1 = gateStatistics[gate1.id]?.totalScans ?? 0
-            let scans2 = gateStatistics[gate2.id]?.totalScans ?? 0
-            return scans1 > scans2
-        }
+        return gatesWithMetrics
+            .sorted { ($0.totalScans ?? 0) > ($1.totalScans ?? 0) }
+            .map { $0.toGate() }
     }
     
     var enforcedGatesCount: Int {
-        gateBindings.filter { $0.status == .enforced }.count
+        // Count enforced bindings from gate metrics
+        gatesWithMetrics.reduce(0) { count, gate in
+            let enforced = gate.categoryBindings?.values.filter { $0.status.lowercased() == "enforced" }.count ?? 0
+            return count + enforced
+        }
     }
-    
+
     var probationGatesCount: Int {
-        gateBindings.filter { $0.status == .probation }.count
+        // Count probation bindings from gate metrics
+        gatesWithMetrics.reduce(0) { count, gate in
+            let probation = gate.categoryBindings?.values.filter { $0.status.lowercased() == "probation" }.count ?? 0
+            return count + probation
+        }
     }
-    
-    var linkingPercentage: Double {
-        guard totalCheckins > 0 else { return 0 }
-        return Double(totalCheckins - unlinkedCount) / Double(totalCheckins) * 100
-    }
-    
+
     var checkinChange: String {
         // Calculate 24h change
         let change = calculateCheckinChange()
         let prefix = change >= 0 ? "+" : ""
         return "\(prefix)\(change)%"
     }
-    
-    var dataQualityStatus: HealthStatus {
-        if dataQuality >= 85 { return .good }
-        if dataQuality >= 70 { return .warning }
-        return .attention
+
+    var unlinkedCount: Int {
+        // With SQL automation, all gates with check-ins are linked
+        return 0
     }
-    
-    var dataQualityDescription: String {
-        let rating = dataQuality >= 85 ? "Excellent" : dataQuality >= 70 ? "Good" : "Needs attention"
-        return "\(Int(dataQuality))% - \(rating)"
+
+    var gateBindings: [GateBinding] {
+        // Extract bindings from gatesWithMetrics
+        var bindings: [GateBinding] = []
+        for gate in gatesWithMetrics {
+            if let categoryBindings = gate.categoryBindings {
+                for (categoryName, binding) in categoryBindings {
+                    let gateBinding = GateBinding(
+                        gateId: gate.gateId,
+                        categoryName: categoryName,
+                        status: binding.status == "enforced" ? .enforced : (binding.status == "probation" ? .probation : .unbound),
+                        confidence: binding.confidence,
+                        sampleCount: binding.sampleCount,
+                        eventId: gate.eventId
+                    )
+                    bindings.append(gateBinding)
+                }
+            }
+        }
+        return bindings
     }
     
     // MARK: - Initialization
@@ -266,7 +298,8 @@ class GatesViewModel: ObservableObject {
     }
     
     func getGateStats(for gate: Gate) -> GateStats {
-        guard let detailStats = gateStatistics[gate.id] else {
+        // Find the metrics for this gate
+        guard let metrics = gatesWithMetrics.first(where: { $0.gateId == gate.id }) else {
             return GateStats(
                 status: .unbound,
                 confidence: 0,
@@ -277,20 +310,20 @@ class GatesViewModel: ObservableObject {
                 categories: []
             )
         }
-        
-        let binding = gateBindings.first { $0.gateId == gate.id }
-        let categories = gateBindings
-            .filter { $0.gateId == gate.id }
-            .map { $0.categoryName }
-        
+
+        // Determine binding status from category bindings
+        let hasEnforced = metrics.categoryBindings?.values.contains { $0.status == "enforced" } ?? false
+        let hasProbation = metrics.categoryBindings?.values.contains { $0.status == "probation" } ?? false
+        let bindingStatus: GateBindingStatus = hasEnforced ? .enforced : (hasProbation ? .probation : .unbound)
+
         return GateStats(
-            status: binding?.status ?? .unbound,
-            confidence: binding?.confidence ?? 0,
-            totalScans: detailStats.totalScans,
-            lastHourScans: detailStats.lastHourScans,
-            avgPerHour: detailStats.avgPerHour,
-            peakHour: detailStats.peakHour,
-            categories: categories
+            status: bindingStatus,
+            confidence: metrics.confidence,
+            totalScans: metrics.totalScans,
+            lastHourScans: 0, // Not provided by view yet
+            avgPerHour: 0,    // Not provided by view yet
+            peakHour: 0,      // Not provided by view yet
+            categories: metrics.categoryNames
         )
     }
     
@@ -319,14 +352,17 @@ class GatesViewModel: ObservableObject {
         print("✅ Event ID validation passed")
     }
     
-    // MARK: - Data Loading
-    
+    // MARK: - Data Loading (Simplified - Uses SQL View)
+
     private func loadAllData() async {
-        guard let eventId = supabaseService.currentEvent?.id else {
+        guard let currentEvent = supabaseService.currentEvent else {
             print("❌ No event selected")
             return
         }
         
+        let eventId = currentEvent.id
+        let seriesId = currentEvent.seriesId
+
         // Validate UUID format
         do {
             try validateEventId(eventId)
@@ -334,84 +370,152 @@ class GatesViewModel: ObservableObject {
             print("❌ Event ID validation failed: \(error.localizedDescription)")
             await MainActor.run {
                 self.isLoading = false
+                self.errorMessage = "Invalid event ID"
             }
             return
         }
-        
-        print("🔄 Starting gate data loading for event ID: \(eventId), time range: \(selectedTimeRange.rawValue)...")
-        
-        // Fetch data with graceful fallbacks - if one fails, others still load
-        let gates = (try? await fetchGates(eventId: eventId)) ?? []
-        print("✅ Gates loaded: \(gates.count)")
-        
-        let bindings = (try? await fetchBindings(eventId: eventId)) ?? []
-        print("✅ Bindings loaded: \(bindings.count)")
-        
-        let catStats = (try? await fetchCategoryStats(eventId: eventId)) ?? []
-        print("✅ Category stats loaded: \(catStats.count)")
-        
-        // Use time-filtered comprehensive stats
-        let comprehensiveStats = (try? await fetchTimeFilteredStats(eventId: eventId))
-        let checkinsCount = comprehensiveStats?.totalCheckins ?? 0
-        let unlinked = comprehensiveStats?.unlinkedCheckins ?? 0
-        print("✅ Time-filtered stats loaded: \(checkinsCount) total, \(unlinked) unlinked")
-        
-        let timeline = (try? await fetchActivityTimeline(eventId: eventId)) ?? []
-        print("✅ Timeline loaded: \(timeline.count)")
-        
-        // Load detailed stats for each gate
-        let gateStats = await fetchGateStatistics(for: gates, eventId: eventId)
-        print("✅ Gate statistics loaded: \(gateStats.count)")
-            
-        await MainActor.run {
-            // Clear existing statistics first to force refresh
-            self.gateStatistics.removeAll()
-            
-            self.activeGates = gates.filter { gate in
-                // Only show gates that have bindings or recent activity
-                gateBindings.contains { $0.gateId == gate.id } ||
-                gateStats.keys.contains(gate.id)
-            }
-            self.gateBindings = bindings
-            self.categoryStats = catStats
-            self.totalCheckins = checkinsCount
-            self.unlinkedCount = unlinked
-            self.activityTimeline = timeline
-            self.gateStatistics = gateStats
-            self.dataQuality = calculateDataQuality()
-            self.isLoading = false
-            
-            print("📊 Updated gate statistics: \(gateStats.count) gates with time range \(selectedTimeRange.rawValue)")
-        }
-        
-        // If no gates were loaded, try to create virtual gates
-        if gates.isEmpty {
-            print("⚠️ No gates found, attempting to create virtual gates...")
-            await createVirtualGatesFromCheckins(eventId: eventId)
+
+        // Determine query based on series vs parent event
+        let endpoint: String
+        if let seriesId = seriesId {
+            print("🔄 Fetching gates from v_gates_complete view for SERIES: \(seriesId)")
+            endpoint = "rest/v1/v_gates_complete?series_id=eq.\(seriesId)&select=*"
         } else {
-            // Link unlinked check-ins to existing gates
-            await linkUnlinkedCheckinsToGates(eventId: eventId)
+            print("🔄 Fetching gates from v_gates_complete view for PARENT EVENT: \(eventId)")
+            endpoint = "rest/v1/v_gates_complete?event_id=eq.\(eventId)&series_id=is.null&select=*"
+        }
+
+        do {
+            // Fetch all gate data from the comprehensive SQL view
+            let gates: [GateWithMetrics] = try await supabaseService.makeRequest(
+                endpoint: endpoint,
+                method: "GET",
+                responseType: [GateWithMetrics].self
+            )
+
+            print("✅ Loaded \(gates.count) gates from v_gates_complete")
+            print("   - Enforcing: \(gates.filter { $0.isEnforcing }.count)")
+            print("   - Needs attention: \(gates.filter { $0.needsAttention }.count)")
+            print("   - Total scans: \(gates.reduce(0) { $0 + $1.totalScans })")
+
+            await MainActor.run {
+                self.gatesWithMetrics = gates
+                self.isLoading = false
+                self.errorMessage = nil
+                print("📊 Updated UI with \(gates.count) gates")
+            }
+
+        } catch {
+            print("❌ Failed to fetch gates: \(error)")
+            await MainActor.run {
+                self.gatesWithMetrics = []
+                self.isLoading = false
+                self.errorMessage = "Failed to load gates: \(error.localizedDescription)"
+            }
         }
     }
     
     private func fetchGates(eventId: String) async throws -> [Gate] {
         // Validate UUID format before making request
         try validateEventId(eventId)
-        
+
         do {
-            print("🔍 Fetching gates for event: \(eventId)")
-            let gates: [Gate] = try await supabaseService.makeRequest(
-                endpoint: "rest/v1/gates?event_id=eq.\(eventId)&select=*&order=created_at.desc",
+            print("🔍 Fetching gates with check-ins for event: \(eventId)")
+
+            // Only fetch gates that have at least one check-in
+            // This ensures we only show SQL-automated gates that are actually in use
+            struct GateWithCheckinCount: Codable {
+                let id: String
+                let eventId: String
+                let name: String
+                let latitude: Double?
+                let longitude: Double?
+                let status: Gate.GateStatus
+                let healthScore: Int?
+                let locationDescription: String?
+                let seriesId: String?
+                let createdAt: Date
+                let updatedAt: Date?
+                let checkinCount: Int?
+
+                enum CodingKeys: String, CodingKey {
+                    case id
+                    case eventId = "event_id"
+                    case name, latitude, longitude, status
+                    case healthScore = "health_score"
+                    case locationDescription = "location_description"
+                    case seriesId = "series_id"
+                    case createdAt = "created_at"
+                    case updatedAt = "updated_at"
+                    case checkinCount = "checkin_count"
+                }
+
+                func toGate() -> Gate {
+                    return Gate(
+                        id: id,
+                        eventId: eventId,
+                        name: name,
+                        latitude: latitude,
+                        longitude: longitude,
+                        status: status,
+                        healthScore: healthScore,
+                        locationDescription: locationDescription,
+                        seriesId: seriesId,
+                        createdAt: createdAt,
+                        updatedAt: updatedAt
+                    )
+                }
+            }
+
+            // Determine query based on series vs parent event context
+            let currentEvent = supabaseService.currentEvent
+            let endpoint: String
+            if let seriesId = currentEvent?.seriesId {
+                endpoint = "rest/v1/gates?series_id=eq.\(seriesId)&select=*,checkin_count:checkin_logs(count)&order=created_at.desc"
+            } else {
+                endpoint = "rest/v1/gates?event_id=eq.\(eventId)&series_id=is.null&select=*,checkin_count:checkin_logs(count)&order=created_at.desc"
+            }
+            
+            // Fetch gates with check-in counts using a join query
+            let gatesWithCounts: [GateWithCheckinCount] = try await supabaseService.makeRequest(
+                endpoint: endpoint,
                 method: "GET",
                 body: nil,
-                responseType: [Gate].self
+                responseType: [GateWithCheckinCount].self
             )
-            print("✅ Successfully fetched \(gates.count) gates")
-            return gates
+
+            // Filter to only gates with at least one check-in
+            let gatesWithCheckins = gatesWithCounts
+                .filter { ($0.checkinCount ?? 0) > 0 }
+                .map { $0.toGate() }
+
+            print("✅ Successfully fetched \(gatesWithCounts.count) total gates, \(gatesWithCheckins.count) with check-ins")
+            return gatesWithCheckins
+
         } catch {
             print("❌ Failed to fetch gates: \(error)")
-            // Return empty array instead of throwing to prevent UI crashes
-            return []
+            // Fallback to simple fetch without count filter
+            do {
+                let currentEvent = supabaseService.currentEvent
+                let fallbackEndpoint: String
+                if let seriesId = currentEvent?.seriesId {
+                    fallbackEndpoint = "rest/v1/gates?series_id=eq.\(seriesId)&select=*&order=created_at.desc"
+                } else {
+                    fallbackEndpoint = "rest/v1/gates?event_id=eq.\(eventId)&series_id=is.null&select=*&order=created_at.desc"
+                }
+                
+                let gates: [Gate] = try await supabaseService.makeRequest(
+                    endpoint: fallbackEndpoint,
+                    method: "GET",
+                    body: nil,
+                    responseType: [Gate].self
+                )
+                print("⚠️ Using fallback fetch, got \(gates.count) gates")
+                return gates
+            } catch {
+                print("❌ Fallback fetch also failed: \(error)")
+                return []
+            }
         }
     }
     

@@ -220,6 +220,15 @@ class SupabaseService: ObservableObject {
                 
                 isAuthenticated = true
             }
+            
+            // Reload user profile after token refresh if we don't have it
+            let needsProfile = await MainActor.run { currentUser == nil }
+            if needsProfile {
+                if let email = UserDefaults.standard.string(forKey: "user_email") {
+                    print("🔄 Reloading user profile after token refresh...")
+                    await loadUserProfile(email: email)
+                }
+            }
         } catch {
             print("❌ Token refresh failed: \(error.localizedDescription)")
             await MainActor.run {
@@ -282,6 +291,13 @@ class SupabaseService: ObservableObject {
                 // Continue with authentication but log the security issue
             }
             
+            // Also store in UserDefaults as fallback
+            UserDefaults.standard.set(response.accessToken, forKey: "supabase_access_token")
+            UserDefaults.standard.set(email, forKey: "user_email")
+            if let refreshToken = response.refreshToken {
+                UserDefaults.standard.set(refreshToken, forKey: "supabase_refresh_token")
+            }
+            
             isAuthenticated = true
             print("🎯 User authenticated, loading profile...")
             await loadUserProfile(email: email)
@@ -326,17 +342,34 @@ class SupabaseService: ObservableObject {
     
     @MainActor
     private func loadUserProfile(email: String) async {
+        print("🔍 Loading user profile...")
         do {
+            // Use parameterized query to prevent SQL injection
             let profiles: [UserProfile] = try await makeRequest(
-                endpoint: "rest/v1/profiles?email=eq.\(email)",
+                endpoint: "rest/v1/profiles?email=eq.\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email)&select=*",
                 method: "GET",
                 responseType: [UserProfile].self
             )
             
-            self.currentUser = profiles.first
-            print("✅ User profile loaded successfully: \(profiles.first?.email ?? "Unknown")")
+            print("🔍 Profile query returned \(profiles.count) results")
+            
+            if let profile = profiles.first {
+                self.currentUser = profile
+                print("✅ User profile loaded successfully")
+                print("   Role: \(profile.role.rawValue)")
+                #if DEBUG
+                print("   Email: \(profile.email)")
+                print("   Full Name: \(profile.fullName ?? "Not set")")
+                #endif
+            } else {
+                print("⚠️ No profile found in database")
+                print("⚠️ User profile must be created via database trigger or admin panel")
+            }
         } catch {
-            print("❌ Failed to load user profile: \(error)")
+            print("❌ Failed to load user profile")
+            #if DEBUG
+            print("❌ Error details: \(error.localizedDescription)")
+            #endif
         }
     }
     
@@ -352,34 +385,186 @@ class SupabaseService: ObservableObject {
         isAuthenticated = false
         errorMessage = nil
     }
-    
+
+    // MARK: - Password Reset
+
+    @MainActor
+    func sendPasswordResetEmail(email: String) async throws {
+        print("🔑 Sending password reset email to: \(email)")
+        isLoading = true
+        defer { isLoading = false }
+
+        let resetData = [
+            "email": email
+        ]
+
+        do {
+            // Password reset is a public endpoint, like signIn/signUp
+            struct EmptyResponse: Codable {}
+            let _: EmptyResponse = try await makeRequest(
+                endpoint: "auth/v1/recover",
+                method: "POST",
+                body: try JSONSerialization.data(withJSONObject: resetData),
+                responseType: EmptyResponse.self
+            )
+
+            print("✅ Password reset email sent to: \(email)")
+        } catch {
+            print("❌ Failed to send password reset email: \(error)")
+            throw error
+        }
+    }
+
+    @MainActor
+    func updatePassword(newPassword: String) async throws {
+        print("🔑 Updating password...")
+        isLoading = true
+        defer { isLoading = false }
+
+        let updateData = [
+            "password": newPassword
+        ]
+
+        do {
+            struct EmptyResponse: Codable {}
+            let _: EmptyResponse = try await makeRequest(
+                endpoint: "auth/v1/user",
+                method: "PUT",
+                body: try JSONSerialization.data(withJSONObject: updateData),
+                responseType: EmptyResponse.self
+            )
+
+            print("✅ Password updated successfully")
+        } catch {
+            print("❌ Failed to update password: \(error)")
+            throw error
+        }
+    }
+
     // MARK: - Event Methods
     func fetchEvents() async throws -> [Event] {
         print("📡 Fetching events from database...")
-        
+
         // Debug current authentication state
         #if DEBUG
         TokenDebugger.debugAuthState()
         debugServiceState()
         #endif
-        
+
         // Check if offline - return cached data
         let isOffline = await MainActor.run { !OfflineDataManager.shared.isOnlineSync }
         if isOffline {
             print("📱 Offline mode - returning cached events")
             return await MainActor.run { OfflineDataManager.shared.getCachedEvents() }
         }
-        
+
         // Ensure token is valid before making request
         try await refreshTokenIfNeeded()
-        
+
+        // Get current user ID for access control
+        let userId = await MainActor.run { currentUser?.id }
+        guard let userId = userId else {
+            print("❌ No user ID available for access control")
+            throw AuthError.noToken
+        }
+
         do {
-            print("📡 Making authenticated request to: rest/v1/events?select=*")
-            let events: [Event] = try await makeRequest(
-                endpoint: "rest/v1/events?select=*",
-                method: "GET",
-                responseType: [Event].self
-            )
+            // Check if user is admin - admins can see all events
+            let currentUserProfile = await MainActor.run { currentUser }
+            let userRole = currentUserProfile?.role
+            let isAdmin = userRole == .admin
+            
+            print("📡 Fetching events for user: \(userId)")
+            print("   User email: \(currentUserProfile?.email ?? "unknown")")
+            print("   User role: \(userRole?.rawValue ?? "ROLE NOT SET")")
+            print("   Is admin: \(isAdmin)")
+            
+            let events: [Event]
+            
+            // ALWAYS fetch all events first to see what's in the database
+            print("🔍 DEBUG: Fetching ALL events from database (no filter)...")
+            
+            let allEvents: [Event]
+            do {
+                allEvents = try await makeRequest(
+                    endpoint: "rest/v1/events?select=*",
+                    method: "GET",
+                    responseType: [Event].self
+                )
+                print("🔍 DEBUG: Database contains \(allEvents.count) total events")
+                
+                // Print first event details for debugging
+                if let firstEvent = allEvents.first {
+                    print("🔍 First event sample:")
+                    print("   Name: \(firstEvent.name)")
+                    print("   ID: \(firstEvent.id)")
+                    print("   Start Date: \(firstEvent.startDate)")
+                }
+            } catch {
+                print("❌ ERROR fetching events from database:")
+                print("   Error: \(error)")
+                print("   Error description: \(error.localizedDescription)")
+                
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .keyNotFound(let key, let context):
+                        print("   Missing key: \(key.stringValue)")
+                        print("   Context: \(context.debugDescription)")
+                    case .typeMismatch(let type, let context):
+                        print("   Type mismatch: expected \(type)")
+                        print("   Context: \(context.debugDescription)")
+                    case .valueNotFound(let type, let context):
+                        print("   Value not found: \(type)")
+                        print("   Context: \(context.debugDescription)")
+                    case .dataCorrupted(let context):
+                        print("   Data corrupted: \(context.debugDescription)")
+                    @unknown default:
+                        print("   Unknown decoding error")
+                    }
+                }
+                throw error
+            }
+            
+            if isAdmin {
+                // Admins can see all events
+                print("👑 Admin user - returning all \(allEvents.count) events")
+                events = allEvents
+            } else {
+                // Non-admin users: Query events through event_access table
+                print("📡 Fetching events with access control for user: \(userId)")
+
+                // First, get event IDs the user has access to
+                struct EventAccess: Codable {
+                    let event_id: String
+                    let access_level: String
+                }
+
+                let accessRecords: [EventAccess] = try await makeRequest(
+                    endpoint: "rest/v1/event_access?user_id=eq.\(userId)&select=event_id,access_level",
+                    method: "GET",
+                    responseType: [EventAccess].self
+                )
+
+                print("✅ User has access to \(accessRecords.count) events")
+
+                if accessRecords.isEmpty {
+                    print("ℹ️ User has no event access granted yet")
+                    return []
+                }
+
+                // Get the event IDs
+                let eventIds = accessRecords.map { $0.event_id }
+
+                // Fetch the actual events using the IDs
+                let eventIdsQuery = eventIds.map { "id.eq.\($0)" }.joined(separator: ",")
+                print("📡 Making authenticated request to: rest/v1/events?or=(\(eventIdsQuery))")
+
+                events = try await makeRequest(
+                    endpoint: "rest/v1/events?or=(\(eventIdsQuery))&select=*",
+                    method: "GET",
+                    responseType: [Event].self
+                )
+            }
             
             print("✅ Database fetch successful! Found \(events.count) events:")
             for (index, event) in events.enumerated() {
@@ -416,37 +601,158 @@ class SupabaseService: ObservableObject {
         currentEvent = event
     }
     
+    // MARK: - Series Event Methods
+    
+    /// Fetch all active series events for the organization
+    func fetchAllActiveSeries() async throws -> [SeriesWithEvent] {
+        print("📡 Fetching all active series events")
+
+        // Ensure token is valid before making request
+        try await refreshTokenIfNeeded()
+
+        do {
+            // First get all series
+            let series: [EventSeries] = try await makeRequest(
+                endpoint: "rest/v1/event_series?select=*&order=start_date.asc",
+                method: "GET",
+                responseType: [EventSeries].self
+            )
+
+            // Filter to only non-past series (show scheduled, active, and upcoming)
+            // Don't filter by lifecycle_status as it might be draft or other states
+            let activeSeries = series.filter { !$0.isPast }
+
+            print("✅ Found \(series.count) total series, \(activeSeries.count) are not past (showing all upcoming and active)")
+
+            // Debug: Print each series
+            for s in series {
+                print("   Series: \(s.name) - Status: \(s.lifecycleStatus.rawValue) - Start: \(s.startDate) - Past: \(s.isPast)")
+            }
+
+            // Fetch parent events for all series
+            var seriesWithEvents: [SeriesWithEvent] = []
+            for seriesItem in activeSeries {
+                do {
+                    let eventArray: [Event] = try await makeRequest(
+                        endpoint: "rest/v1/events?id=eq.\(seriesItem.mainEventId)&select=*",
+                        method: "GET",
+                        responseType: [Event].self
+                    )
+
+                    if let event = eventArray.first {
+                        seriesWithEvents.append(SeriesWithEvent(series: seriesItem, event: event))
+                    }
+                } catch {
+                    print("⚠️ Failed to fetch parent event for series \(seriesItem.id): \(error)")
+                }
+            }
+
+            print("✅ Successfully loaded \(seriesWithEvents.count) series with parent event info")
+            return seriesWithEvents.sorted { $0.startDate < $1.startDate }
+
+        } catch {
+            print("❌ Failed to fetch series: \(error)")
+            throw error
+        }
+    }
+
+    /// Check if an event has series (child events in event_series table)
+    func fetchSeriesForEvent(_ eventId: String) async throws -> [EventSeries] {
+        print("📡 Checking for series in event: \(eventId)")
+
+        // Ensure token is valid before making request
+        try await refreshTokenIfNeeded()
+
+        do {
+            let series: [EventSeries] = try await makeRequest(
+                endpoint: "rest/v1/event_series?main_event_id=eq.\(eventId)&select=*",
+                method: "GET",
+                responseType: [EventSeries].self
+            )
+
+            // Filter to only active and not past series
+            let activeSeries = series.filter { $0.isActiveAndCurrent }
+
+            print("✅ Found \(series.count) series, \(activeSeries.count) are active and current")
+
+            return activeSeries.sorted { $0.startDate < $1.startDate }
+
+        } catch {
+            print("❌ Failed to fetch series: \(error)")
+            throw error
+        }
+    }
+    
+    /// Fetch a specific series with its parent event info
+    func fetchSeriesWithEvent(_ seriesId: String) async throws -> SeriesWithEvent {
+        print("📡 Fetching series details: \(seriesId)")
+        
+        try await refreshTokenIfNeeded()
+        
+        do {
+            // Fetch the series
+            let seriesArray: [EventSeries] = try await makeRequest(
+                endpoint: "rest/v1/event_series?id=eq.\(seriesId)&select=*",
+                method: "GET",
+                responseType: [EventSeries].self
+            )
+            
+            guard let series = seriesArray.first else {
+                throw NSError(domain: "SupabaseService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Series not found"])
+            }
+            
+            // Fetch the parent event
+            let eventArray: [Event] = try await makeRequest(
+                endpoint: "rest/v1/events?id=eq.\(series.mainEventId)&select=*",
+                method: "GET",
+                responseType: [Event].self
+            )
+            
+            guard let event = eventArray.first else {
+                throw NSError(domain: "SupabaseService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Parent event not found"])
+            }
+            
+            return SeriesWithEvent(series: series, event: event)
+            
+        } catch {
+            print("❌ Failed to fetch series with event: \(error)")
+            throw error
+        }
+    }
+    
     // MARK: - Wristband Methods
     func fetchWristbands(for eventId: String) async throws -> [Wristband] {
-        print("🔍 Fetching wristbands for event: \(eventId)")
-        
+        print("🔍 Fetching wristbands for PARENT event: \(eventId) (series_id IS NULL)")
+
         // Check if offline - return cached data
         let isOffline = await MainActor.run { !OfflineDataManager.shared.isOnlineSync }
         if isOffline {
             print("📱 Offline mode - returning cached wristbands")
             return await MainActor.run { OfflineDataManager.shared.getCachedWristbands(for: eventId) }
         }
-        
+
         // Ensure token is valid before making request
         try await refreshTokenIfNeeded()
-        
+
         do {
+            // IMPORTANT: Filter by series_id IS NULL to only get parent event wristbands
+            // This prevents double-counting wristbands that belong to series
             let wristbands: [Wristband] = try await makeRequest(
-                endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&is_active=eq.true&select=*",
+                endpoint: "rest/v1/wristbands?event_id=eq.\(eventId)&is_active=eq.true&series_id=is.null&select=*",
                 method: "GET",
                 responseType: [Wristband].self
             )
-            
-            print("✅ Found \(wristbands.count) wristbands for event \(eventId)")
-            
+
+            print("✅ Found \(wristbands.count) parent event wristbands for event \(eventId) (excluding series wristbands)")
+
             // Cache wristbands for offline use
             await OfflineDataManager.shared.cacheWristbands(wristbands, for: eventId)
-            
+
             return wristbands
-            
+
         } catch {
             print("❌ Failed to fetch wristbands: \(error)")
-            
+
             // Check if it's an authentication error
             if isAuthError(error) {
                 await MainActor.run {
@@ -454,14 +760,49 @@ class SupabaseService: ObservableObject {
                 }
                 throw AuthError.authenticationFailed
             }
-            
+
             // Fallback to cached data if available
             let cachedWristbands = await MainActor.run { OfflineDataManager.shared.getCachedWristbands(for: eventId) }
             if !cachedWristbands.isEmpty {
                 print("📱 Returning cached wristbands as fallback")
                 return cachedWristbands
             }
-            
+
+            throw error
+        }
+    }
+
+    /// Fetch wristbands assigned to a specific series
+    func fetchWristbandsForSeries(_ seriesId: String) async throws -> [Wristband] {
+        print("🔍 Fetching wristbands for series: \(seriesId)")
+
+        // Ensure token is valid before making request
+        try await refreshTokenIfNeeded()
+
+        do {
+            // Query wristbands table directly by series_id
+            // The web portal stores wristbands with series_id set directly
+            let wristbands: [Wristband] = try await makeRequest(
+                endpoint: "rest/v1/wristbands?series_id=eq.\(seriesId)&is_active=eq.true&select=*",
+                method: "GET",
+                responseType: [Wristband].self
+            )
+
+            print("✅ Found \(wristbands.count) wristbands for series \(seriesId)")
+
+            return wristbands
+
+        } catch {
+            print("❌ Failed to fetch wristbands for series: \(error)")
+
+            // Check if it's an authentication error
+            if isAuthError(error) {
+                await MainActor.run {
+                    forceLogout()
+                }
+                throw AuthError.authenticationFailed
+            }
+
             throw error
         }
     }
@@ -588,7 +929,7 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Check-in Methods
-    func recordCheckIn(wristbandId: String, eventId: String, location: String?, notes: String?, gateId: String? = nil) async throws -> CheckinLog {
+    func recordCheckIn(wristbandId: String, eventId: String, location: String?, notes: String?, gateId: String? = nil, seriesId: String? = nil) async throws -> CheckinLog {
         // Validate required UUID parameters
         guard !wristbandId.isEmpty else {
             throw NSError(domain: "CheckinError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Wristband ID cannot be empty"])
@@ -640,6 +981,11 @@ class SupabaseService: ObservableObject {
             checkinData["gate_id"] = gateId
         }
         
+        // Add series_id if provided (for series event check-ins)
+        if let seriesId = seriesId, !seriesId.isEmpty {
+            checkinData["series_id"] = seriesId
+        }
+        
         // Add empty arrays for BLE and WiFi (to be populated when implemented)
         checkinData["ble_seen"] = []
         checkinData["wifi_ssids"] = []
@@ -675,7 +1021,8 @@ class SupabaseService: ObservableObject {
             appAccuracy: nil,
             bleSeen: nil,
             wifiSSIDs: nil,
-            probationTagged: nil
+            probationTagged: nil,
+            seriesId: seriesId
         )
     }
     
@@ -716,12 +1063,16 @@ class SupabaseService: ObservableObject {
         }
         
         // Record the check-in using unified method
+        // Determine seriesId from current event context
+        let seriesId = currentEvent?.seriesId
+        
         let checkinLog = try await recordCheckIn(
             wristbandId: wristbandId,
             eventId: eventId,
             location: location,
             notes: notes,
-            gateId: gateId
+            gateId: gateId,
+            seriesId: seriesId
         )
         
         // Update probation status if needed
@@ -758,8 +1109,8 @@ class SupabaseService: ObservableObject {
         return logs
     }
     
-    // MARK: - Statistics Methods
-    func fetchEventStats(for eventId: String, timeRange: StatsTimeRange) async throws -> EventStats {
+    /// Fetch check-in logs for a specific series
+    func fetchCheckinLogsForSeries(_ seriesId: String, limit: Int = 100) async throws -> [CheckinLog] {
         await MainActor.run {
             isLoading = true
         }
@@ -769,19 +1120,59 @@ class SupabaseService: ObservableObject {
             }
         }
         
-        // Fetch all wristbands for this event
-        let wristbands = try await fetchWristbands(for: eventId)
+        print("🔍 Fetching check-in logs for series: \(seriesId)")
         
-        // Fetch check-in logs with time range filter
+        let logs: [CheckinLog] = try await makeRequest(
+            endpoint: "rest/v1/checkin_logs?series_id=eq.\(seriesId)&order=timestamp.desc&limit=\(limit)&select=*",
+            method: "GET",
+            responseType: [CheckinLog].self
+        )
+        
+        print("✅ Found \(logs.count) check-in logs for series \(seriesId)")
+        
+        return logs
+    }
+    
+    // MARK: - Statistics Methods
+    func fetchEventStats(for eventId: String, seriesId: String? = nil, timeRange: StatsTimeRange) async throws -> EventStats {
+        await MainActor.run {
+            isLoading = true
+        }
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
+        // Fetch wristbands and check-in logs based on whether this is a series or parent event
+        let wristbands: [Wristband]
+        let checkinLogs: [CheckinLog]
+        
         let (startDate, endDate) = timeRange.dateRange
         let startDateString = dateFormatter.string(from: startDate)
         let endDateString = dateFormatter.string(from: endDate)
         
-        let checkinLogs: [CheckinLog] = try await makeRequest(
-            endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&timestamp=gte.\(startDateString)&timestamp=lte.\(endDateString)&order=timestamp.desc&select=*",
-            method: "GET",
-            responseType: [CheckinLog].self
-        )
+        if let seriesId = seriesId {
+            // This is a series event - fetch by series_id
+            print("📊 Fetching stats for SERIES: \(seriesId)")
+            wristbands = try await fetchWristbandsForSeries(seriesId)
+            
+            checkinLogs = try await makeRequest(
+                endpoint: "rest/v1/checkin_logs?series_id=eq.\(seriesId)&timestamp=gte.\(startDateString)&timestamp=lte.\(endDateString)&order=timestamp.desc&select=*",
+                method: "GET",
+                responseType: [CheckinLog].self
+            )
+        } else {
+            // This is a parent event - fetch by event_id
+            print("📊 Fetching stats for PARENT EVENT: \(eventId)")
+            wristbands = try await fetchWristbands(for: eventId)
+            
+            checkinLogs = try await makeRequest(
+                endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&timestamp=gte.\(startDateString)&timestamp=lte.\(endDateString)&order=timestamp.desc&select=*",
+                method: "GET",
+                responseType: [CheckinLog].self
+            )
+        }
         
         // Calculate category breakdown using actual categories from wristbands
         var categoryBreakdown: [WristbandCategory: CategoryStats] = [:]
@@ -838,133 +1229,84 @@ class SupabaseService: ObservableObject {
     
     
     // MARK: - Network Helper Methods
-    func makeRequest<T: Codable>(
+    internal func makeRequest<T: Codable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil,
         responseType: T.Type,
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
+        requiresAuth: Bool = true
     ) async throws -> T {
+        // Build the full URL
         let baseURL = endpoint.contains("auth/v1") ? supabaseURL : "\(supabaseURL)"
-        guard let url = URL(string: "\(baseURL)/\(endpoint)") else {
-            throw SupabaseServiceError.invalidURL
+        let fullEndpoint = endpoint.starts(with: "/") ? String(endpoint.dropFirst()) : endpoint
+        let urlString = "\(baseURL)/\(fullEndpoint)"
+        
+        // Determine HTTP method
+        guard let httpMethod = HTTPMethod(rawValue: method.uppercased()) else {
+            throw SupabaseServiceError.apiError("Invalid HTTP method: \(method)")
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = method
+        // Set up headers
+        var requestHeaders = headers
         
-        // Ensure we have an API key
-        guard let apiKey = supabaseAnonKey else {
-            print("❌ No API key available for request")
-            throw SupabaseServiceError.configurationError("API key not available")
+        // Add auth headers if needed
+        if requiresAuth, let accessToken = accessToken {
+            requestHeaders["Authorization"] = "Bearer \(accessToken)"
         }
         
-        // Set default headers based on endpoint type
-        if endpoint.contains("auth/v1") {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue(apiKey, forHTTPHeaderField: "apikey")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            print("🔑 Auth request using API key (Bearer \(String(apiKey.prefix(20)))...)")
-        } else {
-            // REST API requests - use access token if available, otherwise API key
-            let authToken = accessToken ?? apiKey
-            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-            request.setValue(apiKey, forHTTPHeaderField: "apikey")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-            request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+        // Add content type if not set
+        if requestHeaders["Content-Type"] == nil && body != nil {
+            requestHeaders["Content-Type"] = "application/json"
+        }
+        
+        // For Supabase, we always need the API key
+        if let apiKey = supabaseAnonKey {
+            requestHeaders["apikey"] = apiKey
             
-            if accessToken != nil {
-                print("🔑 REST request using access token (Bearer \(String(authToken.prefix(20)))...)")
-            } else {
-                print("🔑 REST request using API key fallback (Bearer \(String(authToken.prefix(20)))...)")
+            // For auth endpoints, use the API key as the bearer token
+            if endpoint.contains("auth/v1") && !requiresAuth {
+                requestHeaders["Authorization"] = "Bearer \(apiKey)"
             }
         }
         
-        // Apply custom headers (will override defaults if same key)
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        
-        if let body = body {
-            request.httpBody = body
-        }
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw SupabaseServiceError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            print("❌ HTTP Error: \(httpResponse.statusCode)")
-            
-            // Log response data for debugging
-            if let responseString = String(data: data, encoding: .utf8) {
-                print("📄 Response body: \(responseString)")
-            }
-            
-            // Handle authentication errors specifically
-            if httpResponse.statusCode == 401 {
-                print("🔒 Unauthorized - token may be invalid or expired")
-                throw AuthError.authenticationFailed
-            }
-            
-            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let message = errorData["message"] as? String {
-                print("📄 API Error message: \(message)")
-                throw SupabaseServiceError.apiError(message)
-            }
-            
-            throw SupabaseServiceError.httpError(httpResponse.statusCode)
+        // Log the request
+        print("🌐 \(method) \(urlString)")
+        if let body = body, let bodyString = String(data: body, encoding: .utf8) {
+            print("📦 Request body: \(bodyString)")
         }
         
         do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .custom { decoder in
-                let container = try decoder.singleValueContainer()
-                let dateString = try container.decode(String.self)
-                
-                // Try multiple date formats commonly used by PostgreSQL/Supabase
-                let isoFormatter1 = ISO8601DateFormatter()
-                if let date = isoFormatter1.date(from: dateString) {
-                    return date
-                }
-                
-                let isoFormatter2 = ISO8601DateFormatter()
-                isoFormatter2.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = isoFormatter2.date(from: dateString) {
-                    return date
-                }
-                
-                let dateFormatter1 = DateFormatter()
-                dateFormatter1.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
-                dateFormatter1.timeZone = TimeZone(secondsFromGMT: 0)
-                if let date = dateFormatter1.date(from: dateString) {
-                    return date
-                }
-                
-                let dateFormatter2 = DateFormatter()
-                dateFormatter2.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-                dateFormatter2.timeZone = TimeZone(secondsFromGMT: 0)
-                if let date = dateFormatter2.date(from: dateString) {
-                    return date
-                }
-                
-                let dateFormatter3 = DateFormatter()
-                dateFormatter3.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                dateFormatter3.timeZone = TimeZone(secondsFromGMT: 0)
-                if let date = dateFormatter3.date(from: dateString) {
-                    return date
-                }
-                
-                print("❌ Failed to parse date: '\(dateString)'")
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
+            // Use the enhanced NetworkClient with retry logic
+            return try await NetworkClient.shared.execute(
+                endpoint: urlString,
+                method: httpMethod,
+                body: body,
+                headers: requestHeaders,
+                requiresAuth: requiresAuth,
+                responseType: responseType
+            )
+        } catch let error as AppError {
+            // Map AppError to SupabaseServiceError
+            switch error {
+            case .networkError(.timeout):
+                throw SupabaseServiceError.apiError("Request timed out")
+            case .networkError(.noConnection):
+                throw SupabaseServiceError.apiError("No internet connection")
+            case .networkError(.sslError):
+                throw SupabaseServiceError.apiError("SSL connection failed")
+            case .networkError(.invalidResponse):
+                throw SupabaseServiceError.invalidResponse
+            case .unauthorized, .authenticationFailed:
+                throw SupabaseServiceError.authenticationRequired
+            case .apiError(let apiError):
+                throw SupabaseServiceError.apiError(apiError.errorDescription ?? "API error")
+            default:
+                throw SupabaseServiceError.apiError(error.errorDescription ?? "Unknown error")
             }
-            
-            return try decoder.decode(responseType, from: data)
         } catch {
-            throw SupabaseServiceError.decodingError(error)
+            // For any other error, wrap it in our error type
+            throw SupabaseServiceError.apiError(error.localizedDescription)
         }
     }
 }

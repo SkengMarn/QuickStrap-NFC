@@ -257,8 +257,9 @@ struct OfflineScan: Codable, Identifiable {
     let location: String?
     let notes: String?
     let staffId: String?
+    let seriesId: String?
     
-    init(eventId: String, nfcId: String, location: String? = nil, notes: String? = nil, staffId: String? = nil) {
+    init(eventId: String, nfcId: String, location: String? = nil, notes: String? = nil, staffId: String? = nil, seriesId: String? = nil) {
         self.id = UUID().uuidString
         self.eventId = eventId
         self.nfcId = nfcId
@@ -266,6 +267,7 @@ struct OfflineScan: Codable, Identifiable {
         self.location = location
         self.notes = notes
         self.staffId = staffId
+        self.seriesId = seriesId
     }
     
     func toCheckinLog() -> CheckinLog {
@@ -284,7 +286,8 @@ struct OfflineScan: Codable, Identifiable {
             appAccuracy: nil,
             bleSeen: nil,
             wifiSSIDs: nil,
-            probationTagged: nil
+            probationTagged: nil,
+            seriesId: seriesId
         )
     }
 }

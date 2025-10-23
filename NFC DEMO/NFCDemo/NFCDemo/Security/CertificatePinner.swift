@@ -203,8 +203,15 @@ private class CertificateHashExtractor: NSObject, URLSessionDelegate {
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let serverTrust = challenge.protectionSpace.serverTrust,
-              let certificate = SecTrustGetCertificateAtIndex(serverTrust, 0),
+              let serverTrust = challenge.protectionSpace.serverTrust else {
+            completion(nil)
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        
+        // Use SecTrustCopyCertificateChain instead of deprecated SecTrustGetCertificateAtIndex
+        guard let certificates = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
+              let certificate = certificates.first,
               let publicKey = SecCertificateCopyKey(certificate),
               let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
             completion(nil)

@@ -71,9 +71,9 @@ safe_mkdir() {
 # Main analysis function
 run_coderabbit_analysis() {
     log "Starting CodeRabbit analysis..."
-    
-    # Create analysis directory
-    local analysis_dir="./coderabbit_analysis"
+
+    # Create analysis directory (separate output to avoid self-copy)
+    local analysis_dir="./coderabbit_analysis_output"
     if ! safe_mkdir "$analysis_dir"; then
         error "Failed to create analysis directory"
         return 1
@@ -90,7 +90,9 @@ run_coderabbit_analysis() {
         log "Found ${#swift_files[@]} Swift files for analysis"
         for file in "${swift_files[@]}"; do
             if [[ -f "$file" && -s "$file" ]]; then
-                local dest_file="$analysis_dir/$(basename "$file")"
+                # Preserve relative path to avoid filename collisions
+                local relative_path="${file#./}"
+                local dest_file="$analysis_dir/$relative_path"
                 if ! safe_copy_file "$file" "$dest_file"; then
                     error "Failed to process Swift file: $file"
                     success=false

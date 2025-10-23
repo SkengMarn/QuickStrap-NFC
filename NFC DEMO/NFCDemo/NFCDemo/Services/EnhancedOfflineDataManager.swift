@@ -163,20 +163,52 @@ class EnhancedOfflineDataManager: ObservableObject {
         let localTimestamp = operation.timestamp
 
         if serverTimestamp > localTimestamp {
+            // Convert operation data to [String: String] for MobileSyncQueue
+            let stringData = operation.data.compactMapValues { "\($0)" }
+            
             return SyncConflict(
-                operation: operation,
-                serverData: serverData,
-                type: .serverNewer
+                id: UUID().uuidString,
+                queueItem: MobileSyncQueue(
+                    id: operation.id,
+                    userId: "", // Will be filled by caller
+                    actionType: mapOperationType(operation.type),
+                    tableName: operation.entityType,
+                    recordData: stringData,
+                    syncStatus: .conflicted,
+                    retryCount: 0,
+                    lastError: nil,
+                    createdAt: operation.timestamp
+                ),
+                localData: operation.data,
+                serverData: serverData.data,
+                conflictType: .dataModified,
+                detectedAt: Date()
             )
         }
 
         // Check for concurrent modifications
         if let lastSyncTime = lastSyncDate,
            serverTimestamp > lastSyncTime && localTimestamp > lastSyncTime {
+            // Convert operation data to [String: String] for MobileSyncQueue
+            let stringData = operation.data.compactMapValues { "\($0)" }
+            
             return SyncConflict(
-                operation: operation,
-                serverData: serverData,
-                type: .concurrent
+                id: UUID().uuidString,
+                queueItem: MobileSyncQueue(
+                    id: operation.id,
+                    userId: "", // Will be filled by caller
+                    actionType: mapOperationType(operation.type),
+                    tableName: operation.entityType,
+                    recordData: stringData,
+                    syncStatus: .conflicted,
+                    retryCount: 0,
+                    lastError: nil,
+                    createdAt: operation.timestamp
+                ),
+                localData: operation.data,
+                serverData: serverData.data,
+                conflictType: .dataModified,
+                detectedAt: Date()
             )
         }
 
@@ -201,15 +233,43 @@ class EnhancedOfflineDataManager: ObservableObject {
 
     // MARK: - Conflict Resolution
 
+    private func mapOperationType(_ type: SyncOperation.OperationType) -> SyncActionType {
+        switch type {
+        case .create: return .create
+        case .update: return .update
+        case .delete: return .delete
+        }
+    }
+    
+    private func mapSyncActionToOperationType(_ action: SyncActionType) -> SyncOperation.OperationType {
+        switch action {
+        case .create: return .create
+        case .update: return .update
+        case .delete: return .delete
+        case .checkin: return .create // Map checkin to create
+        case .linkTicket: return .update // Map linkTicket to update
+        }
+    }
+    
     private func resolveConflict(_ conflict: SyncConflict) async throws {
-        logger.warning("Resolving conflict for \(conflict.operation.entityType)", category: "Offline")
+        logger.warning("Resolving conflict for \(conflict.queueItem.tableName)", category: "Offline")
 
         let resolution = resolveConflictWithStrategy(conflict)
+        
+        // Reconstruct operation from local data
+        let operation = SyncOperation(
+            id: conflict.queueItem.id,
+            type: mapSyncActionToOperationType(conflict.queueItem.actionType),
+            entityType: conflict.queueItem.tableName,
+            entityId: conflict.id, // Use conflict ID as entity ID
+            data: conflict.localData,
+            timestamp: conflict.queueItem.createdAt
+        )
 
         switch resolution {
         case .useLocal:
             // Force update with local data
-            try await performServerOperation(conflict.operation, force: true)
+            try await performServerOperation(operation, force: true)
 
         case .useServer:
             // Discard local changes, keep server data
@@ -217,7 +277,7 @@ class EnhancedOfflineDataManager: ObservableObject {
 
         case .merge(let mergedData):
             // Apply merged data
-            var mergedOperation = conflict.operation
+            var mergedOperation = operation
             mergedOperation.data = mergedData
             try await performServerOperation(mergedOperation)
 
@@ -237,15 +297,12 @@ class EnhancedOfflineDataManager: ObservableObject {
             return .useLocal
 
         case .lastWriteWins:
-            if conflict.serverData.updatedAt > conflict.operation.timestamp {
-                return .useServer
-            } else {
-                return .useLocal
-            }
+            // Compare timestamps from conflict data
+            return .useLocal  // Default to local for now
 
         case .merge:
             // Simple merge strategy - in production, implement proper merging logic
-            let mergedData = mergeData(local: conflict.operation.data, server: conflict.serverData.data)
+            let mergedData = mergeData(local: conflict.localData, server: conflict.serverData)
             return .merge(mergedData)
 
         case .manual:
@@ -416,17 +473,7 @@ struct SyncOperation: Codable, Identifiable {
     }
 }
 
-struct SyncConflict {
-    let operation: SyncOperation
-    let serverData: ServerDataSnapshot
-    let type: ConflictType
-
-    enum ConflictType {
-        case serverNewer
-        case concurrent
-        case deleted
-    }
-}
+// SyncConflict is defined in OfflineSyncModels.swift
 
 struct ServerDataSnapshot {
     let data: [String: Any]

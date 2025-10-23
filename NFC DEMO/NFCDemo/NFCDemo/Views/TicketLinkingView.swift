@@ -72,6 +72,37 @@ struct TicketLinkingView: View {
                             scannerService.stopScanning()
                         }
                     )
+                    
+                    // Show error if scanner fails
+                    if let error = scannerService.scanError {
+                        VStack {
+                            Spacer()
+                            
+                            Text("Scanner Error")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                            
+                            Button("Retry") {
+                                scannerService.scanError = nil
+                                startScanning()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                            .padding(.top, 16)
+                            
+                            Spacer()
+                        }
+                        .background(Color.black.opacity(0.8))
+                    }
                 }
                 .ignoresSafeArea()
             }
@@ -285,6 +316,10 @@ struct TicketLinkingView: View {
                             isSelected: viewModel.selectedTicket?.id == ticket.id
                         ) {
                             viewModel.selectedTicket = ticket
+                            // Validate the link when ticket is selected
+                            Task {
+                                await viewModel.validateSelectedTicketLink()
+                            }
                         }
                     }
                 }
@@ -296,6 +331,30 @@ struct TicketLinkingView: View {
     // MARK: - Action Buttons
     private var actionButtonsSection: some View {
         VStack(spacing: 16) {
+            // Success Message Display
+            if viewModel.scanState == .success && !viewModel.statusMessage.isEmpty {
+                successMessageView
+            }
+
+            // Error Message Display
+            if viewModel.scanState == .error && !viewModel.statusMessage.isEmpty {
+                errorMessageView
+            }
+
+            // Validation Status
+            if viewModel.isValidatingLink {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Checking category limits...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 8)
+            } else if let validation = viewModel.linkValidation {
+                validationInfoView(validation)
+            }
+
             // Link Button
             Button(action: {
                 Task {
@@ -308,7 +367,7 @@ struct TicketLinkingView: View {
                             .scaleEffect(0.8)
                             .tint(.white)
                     }
-                    
+
                     Text(viewModel.isLinkingTicket ? "Linking..." : "Link Selected Ticket")
                         .font(.headline)
                         .fontWeight(.medium)
@@ -316,11 +375,11 @@ struct TicketLinkingView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .background(viewModel.selectedTicket != nil ? Color.orange : Color.gray)
+                .background(linkButtonColor)
                 .cornerRadius(12)
             }
-            .disabled(viewModel.selectedTicket == nil || viewModel.isLinkingTicket)
-            
+            .disabled(!canLink)
+
             // Cancel Button
             Button("Cancel") {
                 viewModel.cancelTicketLinking()
@@ -328,6 +387,127 @@ struct TicketLinkingView: View {
             .font(.subheadline)
             .foregroundColor(.secondary)
         }
+    }
+
+    // MARK: - Success Message View
+    private var successMessageView: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.statusMessage)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.green)
+
+                    if !viewModel.detailMessage.isEmpty {
+                        Text(viewModel.detailMessage)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.green.opacity(0.1))
+        )
+    }
+
+    // MARK: - Error Message View
+    private var errorMessageView: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.red)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.statusMessage)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.red)
+
+                    if !viewModel.detailMessage.isEmpty {
+                        Text(viewModel.detailMessage)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.red.opacity(0.1))
+        )
+    }
+
+    // MARK: - Validation Info View
+    private func validationInfoView(_ validation: LinkValidationResult) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: validation.canLink ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(validation.canLink ? .green : .red)
+
+                Text(validation.reason)
+                    .font(.subheadline)
+                    .foregroundColor(validation.canLink ? .primary : .red)
+
+                Spacer()
+            }
+
+            // Show category and limit info
+            HStack {
+                Label(validation.category, systemImage: "tag")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Text("\(validation.currentCount)/\(validation.maxAllowed) wristbands")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(validation.canLink ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+        )
+    }
+
+    // MARK: - Computed Properties for Button State
+    private var canLink: Bool {
+        guard viewModel.selectedTicket != nil else { return false }
+        guard !viewModel.isLinkingTicket else { return false }
+        guard !viewModel.isValidatingLink else { return false }
+
+        // If we have validation result, check if linking is allowed
+        if let validation = viewModel.linkValidation {
+            return validation.canLink
+        }
+
+        // Default to true if no validation yet (will be validated on click)
+        return true
+    }
+
+    private var linkButtonColor: Color {
+        if !canLink {
+            return Color.gray
+        }
+
+        if let validation = viewModel.linkValidation, !validation.canLink {
+            return Color.red.opacity(0.5)
+        }
+
+        return Color.orange
     }
 }
 
@@ -429,16 +609,28 @@ extension TicketLinkingView {
     private func startScanning() {
         guard currentCaptureMethod.requiresCamera else { return }
         
+        print("🎥 [DEBUG] Starting scanner for \(currentCaptureMethod.displayName)")
+        
         scannerService.checkCameraPermission()
         
         if scannerService.hasPermission {
+            print("✅ [DEBUG] Camera permission granted, showing scanner")
             showingScanner = true
             scannerService.startScanning { code in
+                print("📱 [DEBUG] Code scanned: \(code)")
                 handleScannedCode(code)
             }
         } else {
-            // Handle permission denied
-            viewModel.statusMessage = "Camera permission required for scanning"
+            print("❌ [DEBUG] Camera permission denied")
+            // Handle permission denied - show alert or redirect to settings
+            viewModel.statusMessage = "Camera permission required for scanning. Please enable camera access in Settings."
+            
+            // Optionally show system settings
+            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                DispatchQueue.main.async {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
         }
     }
     

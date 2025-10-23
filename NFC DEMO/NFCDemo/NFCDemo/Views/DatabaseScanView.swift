@@ -48,11 +48,7 @@ struct DatabaseScanView: View {
             .padding(.top, DesignSystem.Spacing.medium)
         }
         .onAppear {
-            viewModel.setup(
-                nfcReader: nfcReader,
-                supabaseService: supabaseService,
-                eventData: eventData
-            )
+            viewModel.setup(supabaseService: supabaseService)
         }
         .onDisappear {
             viewModel.cleanup()

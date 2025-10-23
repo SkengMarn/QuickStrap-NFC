@@ -9,6 +9,7 @@ class TicketScannerService: NSObject, ObservableObject {
     @Published var isScanning = false
     @Published var scannedCode: String?
     @Published var scanError: String?
+    private var errorDismissalTimer: Timer?
     @Published var hasPermission = false
     
     private var captureSession: AVCaptureSession?
@@ -47,7 +48,8 @@ class TicketScannerService: NSObject, ObservableObject {
     
     func startScanning(onCodeScanned: @escaping (String) -> Void) {
         guard hasPermission else {
-            scanError = "Camera permission required"
+            setScanError("Camera permission required")
+            checkCameraPermission() // Re-check permission in case it changed
             return
         }
         
@@ -55,19 +57,62 @@ class TicketScannerService: NSObject, ObservableObject {
         setupCaptureSession()
     }
     
+    private func setScanError(_ message: String, autoDismissAfter seconds: TimeInterval = 5.0) {
+        // Cancel any existing timer
+        errorDismissalTimer?.invalidate()
+        
+        // Set error
+        scanError = message
+        
+        // Auto-dismiss after specified seconds
+        errorDismissalTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.clearScanError()
+            }
+        }
+    }
+    
+    private func clearScanError() {
+        errorDismissalTimer?.invalidate()
+        errorDismissalTimer = nil
+        scanError = nil
+    }
+    
     func stopScanning() {
-        captureSession?.stopRunning()
-        captureSession = nil
-        previewLayer = nil
-        isScanning = false
-        onCodeScanned = nil
+        print("🛑 [DEBUG] Stopping scanner...")
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.captureSession?.stopRunning()
+            
+            DispatchQueue.main.async {
+                self?.captureSession = nil
+                self?.previewLayer = nil
+                self?.isScanning = false
+                self?.onCodeScanned = nil
+                self?.clearScanError()
+                print("✅ [DEBUG] Scanner stopped successfully")
+            }
+        }
     }
     
     private func setupCaptureSession() {
+        print("🎥 [DEBUG] Setting up capture session...")
+        
+        // Stop any existing session first
+        stopScanning()
+        
         captureSession = AVCaptureSession()
+        guard let session = captureSession else {
+            setScanError("Failed to create capture session")
+            return
+        }
+        
+        // Configure session for better performance
+        session.sessionPreset = .high
         
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
-            scanError = "Camera not available"
+            setScanError("Camera not available")
+            print("❌ [DEBUG] No video capture device found")
             return
         }
         
@@ -76,34 +121,53 @@ class TicketScannerService: NSObject, ObservableObject {
         do {
             videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
         } catch {
-            scanError = "Camera input error: \(error.localizedDescription)"
+            setScanError("Camera input error: \(error.localizedDescription)")
+            print("❌ [DEBUG] Failed to create video input: \(error)")
             return
         }
         
-        if captureSession?.canAddInput(videoInput) == true {
-            captureSession?.addInput(videoInput)
+        session.beginConfiguration()
+        
+        if session.canAddInput(videoInput) {
+            session.addInput(videoInput)
+            print("✅ [DEBUG] Video input added successfully")
         } else {
-            scanError = "Could not add video input"
+            setScanError("Could not add video input")
+            print("❌ [DEBUG] Cannot add video input to session")
+            session.commitConfiguration()
             return
         }
         
         let metadataOutput = AVCaptureMetadataOutput()
         
-        if captureSession?.canAddOutput(metadataOutput) == true {
-            captureSession?.addOutput(metadataOutput)
+        if session.canAddOutput(metadataOutput) {
+            session.addOutput(metadataOutput)
             
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
             metadataOutput.metadataObjectTypes = [
                 .ean8, .ean13, .pdf417, .qr, .code128, .code39, .code93,
                 .upce, .aztec, .dataMatrix, .interleaved2of5, .itf14
             ]
+            print("✅ [DEBUG] Metadata output configured with \(metadataOutput.metadataObjectTypes.count) types")
         } else {
-            scanError = "Could not add metadata output"
+            setScanError("Could not add metadata output")
+            print("❌ [DEBUG] Cannot add metadata output to session")
+            session.commitConfiguration()
             return
         }
         
-        isScanning = true
-        captureSession?.startRunning()
+        session.commitConfiguration()
+        
+        // Start session on background queue to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            session.startRunning()
+            
+            DispatchQueue.main.async {
+                self?.isScanning = true
+                self?.clearScanError()
+                print("✅ [DEBUG] Capture session started successfully")
+            }
+        }
     }
     
     // MARK: - Preview Layer
@@ -147,19 +211,30 @@ struct TicketScannerView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: UIScreen.main.bounds)
+        view.backgroundColor = .black
         
-        if let previewLayer = scannerService.getPreviewLayer() {
-            previewLayer.frame = view.layer.bounds
-            view.layer.addSublayer(previewLayer)
-        }
+        // Add preview layer when scanner is ready
+        updatePreviewLayer(for: view)
         
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Update preview layer frame if needed
+        // Update preview layer frame and ensure it's added
+        updatePreviewLayer(for: uiView)
+    }
+    
+    private func updatePreviewLayer(for view: UIView) {
+        // Remove existing preview layers
+        view.layer.sublayers?.removeAll { $0 is AVCaptureVideoPreviewLayer }
+        
+        // Add current preview layer if available
         if let previewLayer = scannerService.getPreviewLayer() {
-            previewLayer.frame = uiView.bounds
+            previewLayer.frame = view.bounds
+            view.layer.addSublayer(previewLayer)
+            print("✅ [DEBUG] Preview layer added to view with frame: \(view.bounds)")
+        } else {
+            print("⚠️ [DEBUG] No preview layer available")
         }
     }
 }

@@ -3,11 +3,131 @@ import SwiftUI
 struct EventSelectionView: View {
     @EnvironmentObject var supabaseService: SupabaseService
     @State private var events: [Event] = []
+    @State private var seriesEvents: [SeriesWithEvent] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingDrawer = false
     @State private var wristbandCounts: [String: Int] = [:]
-    
+    @State private var searchText: String = ""
+    @State private var sortOption: EventSortOption = .startDate
+    @State private var statusFilter: EventStatusFilter = .all
+    @State private var selectedEvent: Event? = nil
+    @State private var showingSeriesSelection = false
+    @State private var eventSeriesMap: [String: [EventSeries]] = [:]  // Cache series for events
+
+    // Filtered and sorted series events
+    private var filteredSeriesEvents: [SeriesWithEvent] {
+        var filtered = seriesEvents
+
+        // Apply search filter
+        if !searchText.isEmpty {
+            filtered = filtered.filter { seriesEvent in
+                seriesEvent.series.name.localizedCaseInsensitiveContains(searchText) ||
+                seriesEvent.series.description?.localizedCaseInsensitiveContains(searchText) == true ||
+                seriesEvent.series.location?.localizedCaseInsensitiveContains(searchText) == true ||
+                seriesEvent.event.name.localizedCaseInsensitiveContains(searchText) ||
+                seriesEvent.event.location?.localizedCaseInsensitiveContains(searchText) == true
+            }
+        }
+
+        // Apply status filter
+        filtered = filtered.filter { seriesEvent in
+            switch statusFilter {
+            case .all:
+                return true
+            case .active:
+                let now = Date()
+                return now >= seriesEvent.startDate && now <= seriesEvent.endDate
+            case .upcoming:
+                return seriesEvent.startDate > Date()
+            case .past:
+                return seriesEvent.endDate < Date()
+            }
+        }
+
+        // Apply sorting
+        switch sortOption {
+        case .startDate:
+            filtered.sort { $0.startDate < $1.startDate }
+        case .name:
+            filtered.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
+        case .status:
+            filtered.sort { seriesStatusPriority(for: $0.series) < seriesStatusPriority(for: $1.series) }
+        case .wristbandCount:
+            filtered.sort { (wristbandCounts[$0.id] ?? 0) > (wristbandCounts[$1.id] ?? 0) }
+        }
+
+        return filtered
+    }
+
+    // Filtered and sorted standalone events (events without series)
+    private var filteredEvents: [Event] {
+        var filtered = events
+
+        // Apply search filter
+        if !searchText.isEmpty {
+            filtered = filtered.filter { event in
+                event.name.localizedCaseInsensitiveContains(searchText) ||
+                event.description?.localizedCaseInsensitiveContains(searchText) == true ||
+                event.location?.localizedCaseInsensitiveContains(searchText) == true
+            }
+        }
+
+        // Apply status filter
+        filtered = filtered.filter { event in
+            switch statusFilter {
+            case .all:
+                return true
+            case .active:
+                let now = Date()
+                return now >= event.startDate && (event.endDate == nil || now <= event.endDate!)
+            case .upcoming:
+                return event.startDate > Date()
+            case .past:
+                guard let endDate = event.endDate else {
+                    return event.startDate < Date()
+                }
+                return endDate < Date()
+            }
+        }
+
+        // Apply sorting
+        switch sortOption {
+        case .startDate:
+            filtered.sort { $0.startDate < $1.startDate }
+        case .name:
+            filtered.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
+        case .status:
+            filtered.sort { statusPriority(for: $0) < statusPriority(for: $1) }
+        case .wristbandCount:
+            filtered.sort { (wristbandCounts[$0.id] ?? 0) > (wristbandCounts[$1.id] ?? 0) }
+        }
+
+        return filtered
+    }
+
+    private func statusPriority(for event: Event) -> Int {
+        let now = Date()
+        if now >= event.startDate && (event.endDate == nil || now <= event.endDate!) {
+            return 0 // Active events first
+        } else if now < event.startDate {
+            return 1 // Upcoming events second
+        } else {
+            return 2 // Past events last
+        }
+    }
+
+    private func seriesStatusPriority(for series: EventSeries) -> Int {
+        let now = Date()
+        if now >= series.startDate && now <= series.endDate {
+            return 0 // Active events first
+        } else if now < series.startDate {
+            return 1 // Upcoming events second
+        } else {
+            return 2 // Past events last
+        }
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
@@ -18,12 +138,19 @@ struct EventSelectionView: View {
                 VStack(spacing: 0) {
                     // Custom App Bar
                     customAppBar
-                    
+
+                    // Search and Filter Bar (only show when not loading and have events)
+                    if !isLoading && (!events.isEmpty || !seriesEvents.isEmpty) {
+                        searchAndFilterBar
+                    }
+
                     // Content
                     if isLoading {
                         loadingSection
-                    } else if events.isEmpty {
+                    } else if events.isEmpty && seriesEvents.isEmpty {
                         emptyStateSection
+                    } else if filteredEvents.isEmpty && filteredSeriesEvents.isEmpty {
+                        noResultsSection
                     } else {
                         eventsListSection
                     }
@@ -39,6 +166,12 @@ struct EventSelectionView: View {
                 .environmentObject(supabaseService)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingSeriesSelection) {
+            if let event = selectedEvent, let series = eventSeriesMap[event.id] {
+                SeriesSelectionView(parentEvent: event, series: series)
+                    .environmentObject(supabaseService)
+            }
         }
     }
     
@@ -73,7 +206,142 @@ struct EventSelectionView: View {
         .background(Color.white)
         .shadow(color: .black.opacity(0.05), radius: 1, x: 0, y: 1)
     }
-    
+
+    // MARK: - Search and Filter Bar
+    private var searchAndFilterBar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Search field
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+
+                    TextField("Search events...", text: $searchText)
+                        .font(.system(size: 14))
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+
+                // Sort menu
+                Menu {
+                    Button(action: { sortOption = .startDate }) {
+                        Label("Start Date", systemImage: sortOption == .startDate ? "checkmark" : "")
+                    }
+                    Button(action: { sortOption = .name }) {
+                        Label("Name", systemImage: sortOption == .name ? "checkmark" : "")
+                    }
+                    Button(action: { sortOption = .status }) {
+                        Label("Status", systemImage: sortOption == .status ? "checkmark" : "")
+                    }
+                    Button(action: { sortOption = .wristbandCount }) {
+                        Label("Attendees", systemImage: sortOption == .wristbandCount ? "checkmark" : "")
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color(hex: "#635BFF") ?? .blue)
+                        .padding(8)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            // Status filter chips
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(EventStatusFilter.allCases, id: \.self) { filter in
+                        Button(action: {
+                            statusFilter = filter
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: filter.icon)
+                                    .font(.system(size: 12))
+                                Text(filter.displayName)
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(statusFilter == filter ? .white : Color(hex: "#635BFF") ?? .blue)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(statusFilter == filter ? Color(hex: "#635BFF") ?? .blue : Color.white)
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "#635BFF") ?? .blue, lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+
+            // Results count
+            if !searchText.isEmpty || sortOption != .startDate || statusFilter != .all {
+                HStack {
+                    let totalCount = events.count + seriesEvents.count
+                    let filteredCount = filteredEvents.count + filteredSeriesEvents.count
+                    Text("\(filteredCount) of \(totalCount) events")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(.bottom, 8)
+        .background(Color(hex: "#F5F5F5"))
+    }
+
+    // MARK: - No Results Section
+    private var noResultsSection: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 64))
+                .foregroundColor(.gray.opacity(0.6))
+
+            VStack(spacing: 8) {
+                Text("No Events Found")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+
+                Text("Try adjusting your search or filters")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("Clear Search") {
+                searchText = ""
+            }
+            .buttonStyle(RefreshButtonStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "#F5F5F5"))
+    }
+
     // MARK: - Loading Section
     private var loadingSection: some View {
         VStack(spacing: 16) {
@@ -119,19 +387,32 @@ struct EventSelectionView: View {
     
     // MARK: - Events List Section
     private var eventsListSection: some View {
-        VStack(spacing: 0) {
-            // Production-ready events list
-            List(events) { event in
-                EventCard(
-                    event: event,
-                    wristbandCount: wristbandCounts[event.id] ?? 0,
-                    onTap: { selectEvent(event) }
-                )
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                // Show series events first
+                ForEach(filteredSeriesEvents) { seriesEvent in
+                    SeriesEventCard(
+                        seriesEvent: seriesEvent,
+                        wristbandCount: wristbandCounts[seriesEvent.id] ?? 0,
+                        onTap: { selectSeriesEvent(seriesEvent) }
+                    )
+                    .padding(.horizontal, 16)
+                }
+
+                // Then show standalone events
+                ForEach(filteredEvents) { event in
+                    EventCard(
+                        event: event,
+                        wristbandCount: wristbandCounts[event.id] ?? 0,
+                        onTap: { selectEvent(event) }
+                    )
+                    .padding(.horizontal, 16)
+                }
             }
-            .listStyle(PlainListStyle())
-            .refreshable {
-                await refreshEvents()
-            }
+            .padding(.vertical, 12)
+        }
+        .refreshable {
+            await refreshEvents()
         }
     }
     
@@ -222,36 +503,68 @@ struct EventSelectionView: View {
     
     // MARK: - Actions
     private func loadEvents() {
-        guard supabaseService.isAuthenticated else { 
+        guard supabaseService.isAuthenticated else {
             print("❌ EventSelectionView: Not authenticated, cannot load events")
-            return 
+            return
         }
-        
-        print("🔄 EventSelectionView: Starting to load events...")
-        
+
+        print("🔄 EventSelectionView: Starting to load events and series...")
+
         Task { @MainActor in
             isLoading = true
             errorMessage = nil
             print("⏳ EventSelectionView: Set loading = true")
-            
+
             do {
+                // Load both series events and standalone events
+                print("📡 EventSelectionView: Calling fetchAllActiveSeries...")
+                let fetchedSeriesEvents = try await supabaseService.fetchAllActiveSeries()
+                print("✅ EventSelectionView: Received \(fetchedSeriesEvents.count) series events from API")
+
                 print("📡 EventSelectionView: Calling fetchEvents...")
                 let fetchedEvents = try await supabaseService.fetchEvents()
-                print("✅ EventSelectionView: Received \(fetchedEvents.count) events from API")
-                
-                // Print each event for debugging
-                for (index, event) in fetchedEvents.enumerated() {
-                    print("   Event \(index + 1): \(event.name)")
-                    print("      Location: \(event.location ?? "No location")")
-                    print("      Start Date: \(event.startDate.description)")
-                    print("      End Date: \(event.endDate?.description ?? "No end date")")
-                    print("      ID: \(event.id)")
-                }
-                
-                // Load wristband counts for each event (skip for now to isolate issue)
-                print("📊 EventSelectionView: Loading wristband counts...")
-                var counts: [String: Int] = [:]
+                print("✅ EventSelectionView: Received \(fetchedEvents.count) regular events from API")
+
+                // Get the main event IDs that have series
+                let mainEventIdsWithSeries = Set(fetchedSeriesEvents.map { $0.series.mainEventId })
+                print("📊 EventSelectionView: Found \(mainEventIdsWithSeries.count) main events with series")
+                print("📊 EventSelectionView: Main event IDs with series: \(mainEventIdsWithSeries)")
+
+                // Debug: Print all fetched events
+                print("📋 All fetched events:")
                 for event in fetchedEvents {
+                    print("   - \(event.name) (ID: \(event.id))")
+                }
+
+                // Filter: Keep events that DON'T have series (standalone events)
+                // Don't show the main/parent events that have series - show their series instead
+                let standaloneEvents = fetchedEvents.filter { event in
+                    let hasNoSeries = !mainEventIdsWithSeries.contains(event.id)
+                    if !hasNoSeries {
+                        print("   ❌ Filtering out '\(event.name)' - it has series")
+                    }
+                    return hasNoSeries
+                }
+                print("📊 EventSelectionView: \(standaloneEvents.count) standalone events (without series)")
+                print("📊 EventSelectionView: Filtered out \(fetchedEvents.count - standaloneEvents.count) main events (they have series)")
+
+                // Load wristband counts for series events
+                print("📊 EventSelectionView: Loading wristband counts for series...")
+                var counts: [String: Int] = [:]
+                for seriesEvent in fetchedSeriesEvents {
+                    do {
+                        let wristbands = try await supabaseService.fetchWristbandsForSeries(seriesEvent.id)
+                        counts[seriesEvent.id] = wristbands.count
+                        print("   Series \(seriesEvent.name): \(wristbands.count) wristbands")
+                    } catch {
+                        print("⚠️ Failed to load wristbands for series \(seriesEvent.name): \(error)")
+                        counts[seriesEvent.id] = 0
+                    }
+                }
+
+                // Load wristband counts for standalone events
+                print("📊 EventSelectionView: Loading wristband counts for standalone events...")
+                for event in standaloneEvents {
                     do {
                         let wristbands = try await supabaseService.fetchWristbands(for: event.id)
                         counts[event.id] = wristbands.count
@@ -261,19 +574,21 @@ struct EventSelectionView: View {
                         counts[event.id] = 0
                     }
                 }
-                
-                print("🎯 EventSelectionView: About to update UI with \(fetchedEvents.count) events")
-                self.events = fetchedEvents
+
+                print("🎯 EventSelectionView: About to update UI")
+                self.seriesEvents = fetchedSeriesEvents
+                self.events = standaloneEvents
                 self.wristbandCounts = counts
                 self.isLoading = false
-                print("✅ EventSelectionView: UI updated - events.count = \(self.events.count), isLoading = \(self.isLoading)")
-                
+                print("✅ EventSelectionView: UI updated - series: \(self.seriesEvents.count), standalone events: \(self.events.count), isLoading = \(self.isLoading)")
+
             } catch {
                 print("❌ EventSelectionView: Load events failed - \(error)")
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
-                self.events = [] // Clear events on error - no sample data
-                
+                self.events = []
+                self.seriesEvents = []
+
                 // Handle authentication errors
                 if let authError = error as? AuthError {
                     print("🔒 Authentication error: \(authError.localizedDescription)")
@@ -290,9 +605,27 @@ struct EventSelectionView: View {
     }
     
     private func selectEvent(_ event: Event) {
-        Task { @MainActor in
-            supabaseService.selectEvent(event)
-        }
+        // Standalone event - go straight to scanner
+        supabaseService.selectEvent(event)
+    }
+
+    private func selectSeriesEvent(_ seriesEvent: SeriesWithEvent) {
+        // For series events, we need to create a temporary Event object
+        // that represents this specific series instance
+        // IMPORTANT: Set seriesId so wristband queries know to filter by series_id
+        let event = Event(
+            id: seriesEvent.series.id,
+            name: seriesEvent.series.name,
+            description: seriesEvent.series.description,
+            location: seriesEvent.location,
+            startDate: seriesEvent.series.startDate,
+            endDate: seriesEvent.series.endDate,
+            totalCapacity: seriesEvent.series.capacity,
+            lifecycleStatus: seriesEvent.series.lifecycleStatus.rawValue,
+            organizationId: seriesEvent.series.organizationId,
+            seriesId: seriesEvent.series.id  // Mark this as a series event
+        )
+        supabaseService.selectEvent(event)
     }
 }
 
@@ -722,6 +1055,157 @@ struct EventCard: View {
             return "Ended"
         } else {
             return "Active"
+        }
+    }
+}
+
+// MARK: - SeriesEventCard Component
+struct SeriesEventCard: View {
+    let seriesEvent: SeriesWithEvent
+    let wristbandCount: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Series name
+                        Text(seriesEvent.series.name)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+
+                        // Parent event name (smaller, secondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text(seriesEvent.event.name)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if let location = seriesEvent.location {
+                            HStack(spacing: 4) {
+                                Image(systemName: "location")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(location)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    // Status indicator
+                    VStack(spacing: 4) {
+                        Circle()
+                            .fill(seriesStatusColor)
+                            .frame(width: 12, height: 12)
+                        Text(seriesStatusText)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                // Date range
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        Text(seriesEvent.startDate, style: .date)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                    }
+
+                    if !Calendar.current.isDate(seriesEvent.startDate, inSameDayAs: seriesEvent.endDate) {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(seriesEvent.endDate, style: .date)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                    }
+
+                    Spacer()
+
+                    // Wristband count
+                    if wristbandCount > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Text("\(wristbandCount)")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.purple.opacity(0.3), lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var seriesStatusColor: Color {
+        let now = Date()
+        if now < seriesEvent.startDate {
+            return .orange // Upcoming
+        } else if now > seriesEvent.endDate {
+            return .gray // Past
+        } else {
+            return .green // Active
+        }
+    }
+
+    private var seriesStatusText: String {
+        let now = Date()
+        if now < seriesEvent.startDate {
+            return "Upcoming"
+        } else if now > seriesEvent.endDate {
+            return "Ended"
+        } else {
+            return "Active"
+        }
+    }
+}
+
+// MARK: - Sort Options
+enum EventSortOption {
+    case startDate
+    case name
+    case status
+    case wristbandCount
+}
+
+// MARK: - Status Filter
+enum EventStatusFilter: String, CaseIterable {
+    case all = "All"
+    case active = "Active"
+    case upcoming = "Upcoming"
+    case past = "Past"
+
+    var displayName: String {
+        return rawValue
+    }
+
+    var icon: String {
+        switch self {
+        case .all: return "circle.grid.2x2"
+        case .active: return "circle.fill"
+        case .upcoming: return "clock"
+        case .past: return "checkmark.circle"
         }
     }
 }

@@ -101,4 +101,52 @@ class AuthRepository {
             throw error.asAppError()
         }
     }
+
+    // MARK: - Password Reset
+
+    func sendPasswordResetEmail(email: String) async throws {
+        logger.info("Sending password reset email to: \(email)", category: "Auth")
+
+        let resetData = [
+            "email": email
+        ]
+
+        do {
+            // Supabase password reset endpoint
+            let _: EmptyResponse = try await networkClient.post(
+                endpoint: "auth/v1/recover",
+                body: try JSONSerialization.data(withJSONObject: resetData),
+                requiresAuth: false,
+                responseType: EmptyResponse.self
+            )
+
+            logger.info("Password reset email sent to: \(email)", category: "Auth")
+        } catch {
+            logger.error("Failed to send password reset email to \(email): \(error.localizedDescription)", category: "Auth")
+            throw error.asAppError()
+        }
+    }
+
+    func updatePassword(newPassword: String, accessToken: String) async throws {
+        logger.info("Attempting password update", category: "Auth")
+
+        let updateData = [
+            "password": newPassword
+        ]
+
+        do {
+            // Supabase update user endpoint
+            let _: EmptyResponse = try await networkClient.patch(
+                endpoint: "auth/v1/user",
+                body: try JSONSerialization.data(withJSONObject: updateData),
+                requiresAuth: true,
+                responseType: EmptyResponse.self
+            )
+
+            logger.info("Password updated successfully", category: "Auth")
+        } catch {
+            logger.error("Failed to update password: \(error.localizedDescription)", category: "Auth")
+            throw error.asAppError()
+        }
+    }
 }

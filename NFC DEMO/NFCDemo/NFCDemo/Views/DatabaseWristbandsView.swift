@@ -466,20 +466,40 @@ class WristbandsViewModel: ObservableObject {
     @MainActor
     private func loadData() async {
         guard let supabaseService = supabaseService,
-              let eventId = supabaseService.currentEvent?.id else { 
-            print("⚠️ WristbandsViewModel: No supabase service or event ID")
+              let currentEvent = supabaseService.currentEvent else { 
+            print("⚠️ WristbandsViewModel: No supabase service or event")
             return 
         }
         
-        print("🔍 WristbandsViewModel: Loading data for event \(eventId)")
+        let eventId = currentEvent.id
+        let seriesId = currentEvent.seriesId
+        
+        if let seriesId = seriesId {
+            print("🔍 WristbandsViewModel: Loading data for SERIES \(seriesId)")
+        } else {
+            print("🔍 WristbandsViewModel: Loading data for PARENT EVENT \(eventId)")
+        }
+        
         isLoading = true
         
         do {
             print("📡 WristbandsViewModel: Fetching wristbands and logs...")
-            async let wristbands = supabaseService.fetchWristbands(for: eventId)
-            async let logs = supabaseService.fetchCheckinLogs(for: eventId)
             
-            let (fetchedWristbands, fetchedLogs) = try await (wristbands, logs)
+            // Fetch wristbands based on whether this is a series or parent event
+            let fetchedWristbands: [Wristband]
+            let fetchedLogs: [CheckinLog]
+            
+            if let seriesId = seriesId {
+                // This is a series event - fetch wristbands and logs by series_id
+                fetchedWristbands = try await supabaseService.fetchWristbandsForSeries(seriesId)
+                fetchedLogs = try await supabaseService.fetchCheckinLogsForSeries(seriesId)
+                print("✅ Fetched \(fetchedWristbands.count) wristbands and \(fetchedLogs.count) logs for series \(seriesId)")
+            } else {
+                // This is a parent event - fetch wristbands and logs by event_id
+                fetchedWristbands = try await supabaseService.fetchWristbands(for: eventId)
+                fetchedLogs = try await supabaseService.fetchCheckinLogs(for: eventId)
+                print("✅ Fetched \(fetchedWristbands.count) wristbands and \(fetchedLogs.count) logs for parent event \(eventId)")
+            }
             
             print("✅ WristbandsViewModel: Data loaded - \(fetchedWristbands.count) wristbands, \(fetchedLogs.count) logs")
             self.allWristbands = fetchedWristbands
@@ -535,12 +555,30 @@ class WristbandsViewModel: ObservableObject {
     
     func manualCheckIn(wristband: Wristband) async {
         guard let supabaseService = supabaseService,
-              let eventId = supabaseService.currentEvent?.id else { 
-            print("❌ No supabase service or event ID available")
+              let currentEvent = supabaseService.currentEvent else { 
+            print("❌ No supabase service or event available")
             return 
         }
         
-        print("🔄 Starting manual check-in for wristband: \(wristband.nfcId)")
+        // Determine the correct event_id and series_id
+        // For series events: event_id should be the parent event ID (from wristband.eventId)
+        // and series_id should be the series ID (from currentEvent.seriesId)
+        let eventId: String
+        let seriesId: String?
+        
+        if let currentSeriesId = currentEvent.seriesId {
+            // This is a series event - use wristband's event_id (parent) and current series_id
+            eventId = wristband.eventId
+            seriesId = currentSeriesId
+            print("🔄 Starting manual check-in for SERIES wristband: \(wristband.nfcId)")
+            print("   Parent Event ID: \(eventId), Series ID: \(currentSeriesId)")
+        } else {
+            // This is a parent event - use current event ID, no series_id
+            eventId = currentEvent.id
+            seriesId = nil
+            print("🔄 Starting manual check-in for PARENT EVENT wristband: \(wristband.nfcId)")
+            print("   Event ID: \(eventId)")
+        }
         
         do {
             // Record the check-in using the existing method
@@ -549,7 +587,8 @@ class WristbandsViewModel: ObservableObject {
                 eventId: eventId,
                 location: "Manual Check-in - \(wristband.category.name) Area",
                 notes: "Manual check-in from wristbands view",
-                gateId: nil // No specific gate for manual check-in
+                gateId: nil, // No specific gate for manual check-in
+                seriesId: seriesId
             )
             
             print("✅ Manual check-in successful for \(wristband.category.name) wristband: \(wristband.nfcId)")

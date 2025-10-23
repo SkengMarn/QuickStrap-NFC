@@ -4,9 +4,12 @@ import SwiftUI
 struct ThreeTabView: View {
     let selectedEvent: Event
     @State private var showingMenu = false
+    @State private var showingBroadcasts = false
+    @State private var activeBanner: BroadcastMessage? = nil
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var eventData: EventDataManager
     @EnvironmentObject var nfcReader: NFCReader
+    @EnvironmentObject var broadcastService: BroadcastService
     
     var body: some View {
         ZStack {
@@ -80,9 +83,54 @@ struct ThreeTabView: View {
                 )
                 .transition(.move(edge: .leading))
             }
+
+            // Broadcast notification banner overlay
+            if let banner = activeBanner {
+                BroadcastNotificationBanner(
+                    message: banner,
+                    onDismiss: {
+                        activeBanner = nil
+                    },
+                    onTap: {
+                        activeBanner = nil
+                        showingBroadcasts = true
+                    }
+                )
+                .zIndex(999)
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .sheet(isPresented: $showingBroadcasts) {
+            BroadcastMessagesView()
+                .environmentObject(broadcastService)
+        }
+        .onAppear {
+            // Subscribe to broadcasts when view appears
+            Task {
+                if let userId = supabaseService.currentUser?.id {
+                    await broadcastService.subscribeToBroadcasts(
+                        eventId: selectedEvent.id,
+                        userId: userId
+                    )
+                }
+            }
+        }
+        .onDisappear {
+            // Unsubscribe when view disappears
+            Task {
+                await broadcastService.unsubscribeAll()
+            }
+        }
+        .onReceive(broadcastService.$messages) { messages in
+            // Show banner for new messages
+            if let latestMessage = messages.first,
+               let userId = supabaseService.currentUser?.id,
+               !latestMessage.isReadBy(userId: userId),
+               activeBanner?.id != latestMessage.id {
+                activeBanner = latestMessage
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
@@ -97,17 +145,28 @@ struct ThreeTabView: View {
             }
             
             ToolbarItem(placement: .navigationBarTrailing) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(selectedEvent.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    
-                    if let location = selectedEvent.location {
-                        Text(location)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                HStack(spacing: 16) {
+                    // Notification bell
+                    NotificationBellIcon(
+                        unreadCount: broadcastService.unreadCount,
+                        action: {
+                            showingBroadcasts = true
+                        }
+                    )
+
+                    // Event info
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(selectedEvent.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
                             .lineLimit(1)
+
+                        if let location = selectedEvent.location {
+                            Text(location)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -297,7 +356,8 @@ struct MenuButton: View {
             totalCapacity: 100,
             createdBy: "admin",
             createdAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
+            organizationId: "org-1"
         ))
     }
 }

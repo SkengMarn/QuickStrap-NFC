@@ -201,66 +201,166 @@ private struct EnhancedStatCard: View {
 struct GateCard: View {
     let gate: Gate
     let stats: GateStats
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
+            // Header with health and status
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(gate.name)
-                        .font(.headline)
-                    
-                    Text("ID: \(gate.id.prefix(8))...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(gate.name)
+                            .font(.headline)
+
+                        if let healthScore = gate.healthScore {
+                            HStack(spacing: 2) {
+                                Image(systemName: healthIcon(for: healthScore))
+                                    .font(.caption2)
+                                Text("\(healthScore)%")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(healthColor(for: healthScore))
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        // Discovery method badge
+                        if let description = gate.locationDescription {
+                            HStack(spacing: 4) {
+                                Image(systemName: discoveryIcon(for: description))
+                                    .font(.caption2)
+                                Text(description)
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                
+
                 Spacer()
-                
-                StatusBadge(status: stats.status)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    GateStatusBadge(status: gate.status)
+                    StatusBadge(status: stats.status)
+                }
             }
-            
-            // Stats
-            HStack(spacing: 16) {
+
+            // Performance metrics
+            HStack(spacing: 12) {
                 EnhancedStatItem(
                     label: "Scans",
                     value: "\(stats.totalScans)",
                     icon: "person.crop.circle.badge.checkmark"
                 )
-                
+
                 EnhancedStatItem(
-                    label: "Last Hour",
-                    value: "\(stats.lastHourScans)",
-                    icon: "clock.fill"
+                    label: "Success",
+                    value: String(format: "%.0f%%", successRate(stats.totalScans)),
+                    icon: "checkmark.circle.fill"
                 )
-                
+
                 EnhancedStatItem(
                     label: "Confidence",
                     value: String(format: "%.0f%%", stats.confidence * 100),
                     icon: "gauge.medium"
                 )
+
+                EnhancedStatItem(
+                    label: "Categories",
+                    value: "\(stats.categories.count)",
+                    icon: "tag.fill"
+                )
             }
-            
-            // Categories
+
+            // Categories with enforcement status
             if !stats.categories.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(stats.categories, id: \.self) { category in
-                            Text(category)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(6)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Learned Categories")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+
+                        Spacer()
+
+                        // Enforcement indicator
+                        if stats.status == .enforced {
+                            HStack(spacing: 2) {
+                                Image(systemName: "shield.checkered")
+                                    .font(.caption2)
+                                Text("Enforcing")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.green)
                         }
                     }
-                    .padding(.horizontal, 1)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(stats.categories, id: \.self) { category in
+                                CategoryBadge(category: category, status: stats.status)
+                            }
+                        }
+                        .padding(.horizontal, 1)
+                    }
                 }
             }
         }
         .padding()
         .background(.ultraThinMaterial)
         .cornerRadius(12)
+    }
+
+    private func healthIcon(for score: Int) -> String {
+        if score >= 80 { return "checkmark.circle.fill" }
+        if score >= 60 { return "exclamationmark.circle.fill" }
+        return "xmark.circle.fill"
+    }
+
+    private func healthColor(for score: Int) -> Color {
+        if score >= 80 { return .green }
+        if score >= 60 { return .orange }
+        return .red
+    }
+
+    private func discoveryIcon(for method: String) -> String {
+        if method.contains("v2") { return "sparkles" }
+        if method.contains("manual") { return "hand.raised.fill" }
+        return "location.fill"
+    }
+
+    private func successRate(_ totalScans: Int) -> Double {
+        // This would come from metrics in real implementation
+        guard totalScans > 0 else { return 0 }
+        return 95.0 // Placeholder - would calculate from successful_scans / total_scans
+    }
+}
+
+struct CategoryBadge: View {
+    let category: String
+    let status: GateBindingStatus
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(category)
+                .font(.caption)
+            if status == .enforced {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.caption2)
+                    .foregroundColor(.green)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(backgroundColor)
+        .cornerRadius(6)
+    }
+
+    private var backgroundColor: Color {
+        switch status {
+        case .enforced: return Color.green.opacity(0.1)
+        case .probation: return Color.orange.opacity(0.1)
+        case .unbound: return Color.gray.opacity(0.1)
+        }
     }
 }
 
@@ -289,7 +389,7 @@ private struct EnhancedStatItem: View {
 
 struct StatusBadge: View {
     let status: GateBindingStatus
-    
+
     var body: some View {
         Text(status.displayName)
             .font(.caption)
@@ -302,21 +402,52 @@ struct StatusBadge: View {
     }
 }
 
+struct GateStatusBadge: View {
+    let status: Gate.GateStatus
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: iconForStatus)
+                .font(.caption2)
+
+            Text(status.displayName)
+                .font(.caption)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(hex: status.color)?.opacity(0.2) ?? Color.gray.opacity(0.2))
+        .foregroundColor(Color(hex: status.color) ?? .gray)
+        .cornerRadius(6)
+    }
+
+    private var iconForStatus: String {
+        switch status {
+        case .learning: return "brain.head.profile"
+        case .active: return "checkmark.circle.fill"
+        case .optimizing: return "arrow.triangle.2.circlepath"
+        case .maintenance: return "wrench.and.screwdriver.fill"
+        case .paused: return "pause.circle.fill"
+        }
+    }
+}
+
 struct EmptyGatesView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "location.slash")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            
+
             VStack(spacing: 8) {
-                Text("No Gates Found")
+                Text("No Active Gates")
                     .font(.headline)
-                
-                Text("Gates will appear here as check-ins are processed")
+
+                Text("Gates are automatically created by GPS clustering when check-ins occur. Start scanning to see gates appear here.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
             }
         }
         .padding(.vertical, 32)

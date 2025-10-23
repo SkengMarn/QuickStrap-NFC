@@ -133,13 +133,38 @@ class RealSchemaCheckInProcessor: ObservableObject {
         do {
             print("🔍 Fetching unlinked check-ins...")
             
-            // Fetch unlinked check-ins WITH category (using JOIN)
-            let checkIns: [CheckInWithCategory] = try await supabaseService.makeRequest(
-                endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&gate_id=is.null&app_lat=not.is.null&select=id,event_id,wristband_id,app_lat,app_lon,app_accuracy,timestamp,wristbands!inner(category)&limit=\(batchSize)",
+            // Fetch unlinked check-ins (without join to avoid ambiguity)
+            let basicCheckIns: [CheckinLog] = try await supabaseService.makeRequest(
+                endpoint: "rest/v1/checkin_logs?event_id=eq.\(eventId)&gate_id=is.null&app_lat=not.is.null&limit=\(batchSize)",
                 method: "GET",
                 body: nil,
-                responseType: [CheckInWithCategory].self
+                responseType: [CheckinLog].self
             )
+            
+            // Convert to CheckInWithCategory by fetching wristband categories separately
+            var checkIns: [CheckInWithCategory] = []
+            for checkIn in basicCheckIns {
+                // Fetch wristband category separately to avoid SQL ambiguity
+                let wristbands: [Wristband] = try await supabaseService.makeRequest(
+                    endpoint: "rest/v1/wristbands?id=eq.\(checkIn.wristbandId)&select=category",
+                    method: "GET",
+                    body: nil,
+                    responseType: [Wristband].self
+                )
+                
+                let category = wristbands.first?.category.name ?? "Unknown"
+                let checkInWithCategory = CheckInWithCategory(
+                    id: checkIn.id,
+                    eventId: checkIn.eventId,
+                    wristbandId: checkIn.wristbandId,
+                    appLat: checkIn.appLat,
+                    appLon: checkIn.appLon,
+                    appAccuracy: checkIn.appAccuracy,
+                    category: category,
+                    timestamp: checkIn.timestamp
+                )
+                checkIns.append(checkInWithCategory)
+            }
             
             guard !checkIns.isEmpty else {
                 print("✅ No unlinked check-ins to process")

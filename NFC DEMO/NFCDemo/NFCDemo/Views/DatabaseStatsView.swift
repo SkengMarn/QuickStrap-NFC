@@ -428,12 +428,20 @@ class StatsViewModel: ObservableObject {
     @MainActor
     private func loadStats() async {
         guard let supabaseService = supabaseService,
-              let eventId = supabaseService.currentEvent?.id else { return }
+              let currentEvent = supabaseService.currentEvent else { return }
+        
+        let eventId = currentEvent.id
+        let seriesId = currentEvent.seriesId
         
         isLoading = true
         
         do {
-            let eventStats = try await supabaseService.fetchEventStats(for: eventId, timeRange: selectedTimeRange)
+            // Pass seriesId if this is a series event
+            let eventStats = try await supabaseService.fetchEventStats(
+                for: eventId,
+                seriesId: seriesId,
+                timeRange: selectedTimeRange
+            )
             let chartData = generateChartData(from: eventStats.recentActivity)
             
             self.stats = eventStats
